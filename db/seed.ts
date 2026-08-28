@@ -12,7 +12,11 @@
  *
  * Gebruik: npm run seed  (vereist SUPABASE_SERVICE_ROLE_KEY in .env.local)
  */
-import "dotenv/config";
+import { config } from "dotenv";
+// Next.js leest zelf .env.local; dit losstaande script (buiten Next om) moet
+// dat expliciet doen — anders vindt het alleen een eventueel kaal .env-bestand.
+config({ path: ".env.local" });
+config(); // vult eventueel aan met .env, zonder al gezette waarden te overschrijven
 import { createClient } from "@supabase/supabase-js";
 import content from "./content.json";
 
