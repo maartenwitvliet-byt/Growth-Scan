@@ -5,16 +5,25 @@ Losstaande, eenbestands-webapp (`index.html`) voor een groeisessie met een klant
 openen in de browser of hosten op een willekeurig https-adres.
 
 ## Huisstijl
-Gebaseerd op het Nmbrs brandbook (brand.nmbrs.com, maart 2026):
-Nmbrs Blue `#1C98EB`, People `#164B88`, Agile `#E9F5FD`, Cloud `#FFFFFF`,
-Action `#5EBF4D` (alleen CTA's), Vibe `#4EAEEF`, Text `#163E59`.
-Logo: symbool altijd blauw, woordmerk in Text-blauw of wit. Op donkere vlakken
-wordt de witte woordmerk-variant gebruikt. De squircle van het N°-symbool en het
-N°-teken zijn als vormtaal doorgevoerd.
+Gebaseerd op de **Nmbrs Brand Guidelines (16-09-2026)** en de **Nmbrs Digital
+Stylesheet (08-07-2026)**:
 
-Typografie: Ubuntu (koppen) en Source Sans 3 (tekst). Dit is een aanname, want de
-typografiepagina van het brandbook was niet publiek bereikbaar. Wissel het om via
-`--font-head` en `--font-body` als het brandbook iets anders voorschrijft.
+- **Kleuren**: White, Blurple `#6B5DFF`, Midnight Blue `#010149`, Dark Blue
+  `#00001D`, Lavender `#E7E5FF`, Off-White `#FFFBF4`. Coral `#FE6E63` gebruik je
+  alleen voor primaire knoppen en kleine highlight-labels, altijd met Dark Blue
+  tekst.
+- **Typografie**: Stratos Bold voor koppen (−2%, regelhoogte 95%), met Barlow
+  Extra Bold als goedgekeurde Google-fallback. Inter voor tekst. Is Stratos lokaal
+  of via Adobe Fonts geïnstalleerd, dan wordt die automatisch gebruikt.
+- **Logo**: vectorpaden uit de guidelines. Duotone op licht, inverse op Midnight,
+  Dark Blue monotone op Blurple (nooit wit op Blurple). In de topbar staat de
+  secundaire (horizontale) lockup, op de startpagina en de PDF-cover de primaire.
+- **Vormtaal**: pill-knoppen (primair, secundair, tertiair) met opwaartse hover,
+  N-vormen als decoratie, grote cijfers, en paginaovergangen met een opwaartse,
+  licht schuine beweging.
+- **Volume**: functionele stappen licht, het Groeiverhaal "high volume" in Blurple
+  en Midnight.
+- **Iconen**: Google Material Symbols (Regular, outlined).
 
 ## Inhoud aanpassen
 Thema's en stellingen staan in het `THEMES`-blok (eerste `<script>`), met per
