@@ -35,10 +35,15 @@ stelling `titel`, `stelling`, `oplossing`, `waarde` en `functies`.
 - Met "Verstuur naar Google Doc" post je naar een Zapier Catch Hook. Het tandwiel
   overschrijft de URL per browser. De payload bevat sinds deze versie ook
   `eerste_stap` en `gewenste_startdatum`.
-- **Download als PDF** bouwt een apart ontworpen A4-rapport op uit de sessiedata.
-  Het bevat een cover, een samenvatting, de analyse per thema, de matrix met
-  genummerde pijnpunten, de business case, de roadmap, de aanbevelingen in
-  detail, de Nmbrs-oplossingen en de volgende stap met ruimte voor notities, en
-  sluit af met een achterkant. Lange secties lopen door op vervolgpagina's
-  zonder dat een blok wordt gesplitst. Kies in het printvenster "Opslaan als
-  PDF", met marges "Geen" en "Achtergrondafbeeldingen" aan.
+- **Download als PDF** bouwt een apart ontworpen A4-rapport op uit de sessiedata
+  en downloadt het direct als `Groeiverhaal - <klant>.pdf`, zonder printvenster.
+  Het rapport bevat een cover, een samenvatting, de analyse per thema, de matrix
+  met genummerde pijnpunten, de business case, de roadmap, de aanbevelingen, de
+  Nmbrs-oplossingen, de volgende stap en een achterkant. Elke pagina wordt
+  1-op-1 omgezet naar A4 (html2canvas 1.4.1 + jsPDF 2.5.1, MIT, ingebouwd in het
+  bestand, dus ook offline bruikbaar). Het resultaat is daardoor altijd gelijk,
+  ongeacht browser of printer. Lange secties lopen door op vervolgpagina's
+  zonder dat een blok wordt gesplitst.
+- Ctrl/Cmd+P print hetzelfde rapport via het printvenster (A4, marges "Geen",
+  "Achtergrondafbeeldingen" aan). Lukt de directe download onverhoopt niet, dan
+  opent de app automatisch dat printvenster.
