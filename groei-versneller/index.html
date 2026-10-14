@@ -662,8 +662,10 @@ kbd {
 /* ---------------------------------------------------------------- */
 #report { position: fixed; left: -10000px; top: 0; width: 210mm; visibility: hidden; pointer-events: none; }
 
+/* Paginering meet op 210 x 279mm: de kleinste maat van A4 en Letter, zodat
+   alles op beide past. Bij printen vult elke pagina het gekozen papier. */
 .rp-page {
-  position: relative; width: 210mm; height: 297mm; overflow: hidden;
+  position: relative; width: 210mm; height: 279mm; overflow: hidden;
   display: flex; flex-direction: column;
   background: var(--white); color: var(--dark);
   font-family: var(--font-body); font-size: 9.5pt; line-height: 1.35;
@@ -888,7 +890,8 @@ kbd {
   body > *:not(#report) { display: none !important; }
   #report { position: static; left: auto; visibility: visible; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
-  .rp-page { break-after: page; page-break-after: always; }
+  #report { width: auto; }
+  .rp-page { width: 100vw; height: 297mm; height: 100vh; break-after: page; page-break-after: always; }
   .rp-page:last-child { break-after: auto; page-break-after: auto; }
 }
 </style>
