@@ -656,85 +656,240 @@ kbd {
 }
 
 /* ---------------------------------------------------------------- */
-/* PRINT / PDF (A4)                                                 */
+/* RAPPORT (A4) - apart ontworpen printdocument, door JS opgebouwd  */
+/* uit dezelfde sessiedata. Op scherm buiten beeld (wel opgemaakt,  */
+/* zodat de paginering kan meten); bij printen het enige zichtbare. */
 /* ---------------------------------------------------------------- */
-.print-header, .print-footer, .print-cover, .print-backcover { display: none; }
+#report { position: fixed; left: -10000px; top: 0; width: 210mm; visibility: hidden; pointer-events: none; }
+
+.rp-page {
+  position: relative; width: 210mm; height: 297mm; overflow: hidden;
+  display: flex; flex-direction: column;
+  background: var(--white); color: var(--dark);
+  font-family: var(--font-body); font-size: 9.5pt; line-height: 1.35;
+}
+.rp-page * { box-sizing: border-box; }
+.rp-d { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.02em; line-height: .95; }
+
+/* Kop en voet */
+.rp-head {
+  flex: none; height: 20mm; margin: 0 16mm; display: flex; align-items: center; justify-content: space-between;
+  border-bottom: .3mm solid var(--line);
+}
+.rp-head .logo { height: 4.6mm; }
+.rp-head-meta { font-size: 7.5pt; color: var(--text-muted); text-align: right; line-height: 1.3; }
+.rp-head-meta b { display: block; color: var(--dark); font-weight: 600; font-size: 8pt; }
+.rp-body { flex: 1; min-height: 0; overflow: hidden; padding: 9mm 16mm 0; display: flex; flex-direction: column; }
+.rp-body > * { flex-shrink: 0; }
+.rp-body > * + * { margin-top: 5mm; }
+.rp-body > .rp-legend-row + .rp-legend-row, .rp-body > .rp-fn + .rp-fn, .rp-body > .rp-cont + * { margin-top: 0; }
+.rp-body > .rp-legend-row:first-of-type, .rp-body > .rp-fn:first-of-type { border-top: .25mm solid var(--line); }
+.rp-body > .rp-cont { margin-bottom: 3mm; }
+.rp-foot {
+  flex: none; height: 14mm; margin: 0 16mm; display: flex; align-items: center; justify-content: space-between;
+  border-top: .3mm solid var(--line); font-size: 7pt; color: var(--text-muted);
+}
+.rp-pnum { font-family: var(--font-display); font-weight: 800; font-size: 11pt; color: var(--dark); letter-spacing: -0.02em; }
+.rp-pnum small { font-family: var(--font-body); font-weight: 400; font-size: 7pt; color: var(--text-muted); letter-spacing: 0; margin-left: 1mm; }
+
+/* Sectiekop */
+.rp-sec { display: grid; grid-template-columns: auto 1fr; gap: 0 6mm; align-items: end; padding-bottom: 2mm; }
+.rp-sec-num { font-family: var(--font-display); font-weight: 800; font-size: 54pt; line-height: .8; letter-spacing: -0.03em; color: var(--blurple); }
+.rp-sec-title { font-family: var(--font-display); font-weight: 800; font-size: 28pt; line-height: .95; letter-spacing: -0.02em; margin: 0; }
+.rp-sec-lead { grid-column: 1 / -1; margin: 4mm 0 0; font-size: 10.5pt; color: var(--text-soft); max-width: 150mm; line-height: 1.4; }
+.rp-cont { margin: 0; font-size: 8pt; color: var(--text-muted); }
+.rp-h3 { margin: 2mm 0 0; font-weight: 700; font-size: 11.5pt; line-height: 1.15; }
+.rp-label { font-size: 7.5pt; font-weight: 600; color: var(--text-muted); }
+.rp-note { font-size: 7.5pt; color: var(--text-muted); line-height: 1.4; margin: 0; }
+.rp-chip { display: inline-block; font-size: 7pt; font-weight: 600; padding: .6mm 2.4mm; border-radius: 99px; background: var(--lavender); color: var(--dark); margin: 0 1mm 1mm 0; }
+.rp-hl { display: inline-block; font-size: 7pt; font-weight: 600; padding: .6mm 2.4mm; border-radius: 99px; background: var(--coral); color: var(--dark); }
+
+/* Markering (genummerd pijnpunt) */
+.rp-mark {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 6.2mm; height: 6.2mm; border-radius: 99px; font-size: 7pt; font-weight: 700; line-height: 1;
+  background: var(--lavender); color: var(--dark);
+}
+.rp-mark.rq-quickwin { background: var(--blurple); color: var(--dark); }
+.rp-mark.rq-project { background: var(--midnight); color: var(--white); }
+.rp-mark.rq-nice { background: var(--lavender); color: var(--dark); }
+.rp-mark.rq-reconsider { background: var(--white); color: var(--text-soft); box-shadow: inset 0 0 0 .35mm var(--text-muted); }
+
+/* Cover */
+.rp-cover { background: var(--blurple); padding: 18mm 16mm; }
+.rp-cover .nshape { --c: var(--midnight); }
+.rp-cover .logo { position: relative; z-index: 1; height: 24mm; }
+.rp-cover-class { position: absolute; top: 18mm; right: 16mm; z-index: 1; font-size: 7.5pt; font-weight: 600; color: var(--white); background: var(--dark); padding: 1mm 3mm; border-radius: 99px; }
+.rp-cover-body { position: absolute; left: 16mm; right: 16mm; bottom: 46mm; z-index: 1; }
+.rp-cover-eyebrow { font-size: 11pt; margin: 0 0 5mm; }
+.rp-cover-title { font-size: 76pt; margin: 0 0 6mm; }
+.rp-cover-client { font-weight: 700; font-size: 18pt; margin: 0; }
+.rp-cover-meta { position: absolute; left: 16mm; right: 16mm; bottom: 18mm; z-index: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; border-top: .35mm solid var(--dark); padding-top: 4mm; }
+.rp-cover-meta span { display: block; font-size: 7.5pt; }
+.rp-cover-meta strong { display: block; font-weight: 700; font-size: 10.5pt; margin-top: .8mm; }
+
+/* Samenvatting */
+.rp-hero { position: relative; overflow: hidden; display: grid; grid-template-columns: 36mm 1fr; gap: 7mm; align-items: center; background: var(--blurple); border-radius: 4mm; padding: 6mm 7mm; }
+.rp-hero .nshape { width: 18mm; height: 18mm; right: 6mm; top: 6mm; }
+.rp-hero .nshape path { fill: var(--midnight); }
+.rp-gauge { position: relative; width: 36mm; height: 36mm; }
+.rp-gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.rp-gauge-val { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.rp-gauge-val .rp-d { font-size: 30pt; }
+.rp-gauge-val span:last-child { font-size: 7pt; margin-top: 1mm; }
+.rp-hero p { margin: 0; font-size: 9pt; line-height: 1.4; padding-right: 16mm; }
+.rp-hero .rp-label { color: var(--dark); display: block; margin-bottom: 2mm; }
+
+.rp-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4mm; }
+.rp-kpi { background: var(--offwhite); border-radius: 3mm; padding: 3.5mm 4mm; }
+.rp-kpi .rp-d { font-size: 26pt; display: block; }
+.rp-kpi span:last-child { display: block; font-size: 7.5pt; color: var(--text-soft); margin-top: 1.5mm; line-height: 1.25; }
+.rp-kpi.accent .rp-d { color: var(--blurple); }
+
+.rp-money { position: relative; overflow: hidden; display: grid; grid-template-columns: 1fr auto; gap: 8mm; align-items: end; background: var(--midnight); color: var(--white); border-radius: 4mm; padding: 5mm 7mm; }
+.rp-money .rp-d { color: var(--white); font-size: 30pt; display: block; margin-top: 2mm; }
+.rp-money .sub { font-size: 7.5pt; color: var(--lavender); margin-top: 1.5mm; display: block; }
+.rp-money .wait .rp-d { font-size: 22pt; }
+
+.rp-top { display: flex; flex-direction: column; margin-top: 2mm !important; }
+.rp-top-row { display: grid; grid-template-columns: 12mm 1fr; gap: 4mm; align-items: start; padding: 2.6mm 0; border-top: .3mm solid var(--line); }
+.rp-top-row .rp-d { font-size: 22pt; color: var(--blurple); }
+.rp-top-row b { display: block; font-size: 10.5pt; }
+.rp-top-row small { display: block; font-size: 7.5pt; color: var(--text-muted); margin: .5mm 0 1mm; }
+.rp-top-row p { margin: 0; font-size: 8.5pt; color: var(--text-soft); }
+
+.rp-explain { display: grid; grid-template-columns: 6mm 1fr; gap: 3mm; background: var(--lavender-50); border-radius: 3mm; padding: 3mm 4mm; margin-top: auto !important; margin-bottom: 6mm; }
+.rp-explain .material-symbols-outlined { font-size: 14pt; color: var(--blurple); }
+
+/* Thema's */
+.rp-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+.rp-stat { border-radius: 3mm; padding: 4.5mm; background: var(--lavender); }
+.rp-stat .rp-d { font-size: 26pt; display: block; }
+.rp-stat span:last-child { display: block; font-size: 7.5pt; margin-top: 1.5mm; color: var(--text-soft); }
+.rp-stat.dark { background: var(--midnight); color: var(--white); }
+.rp-stat.dark span:last-child { color: var(--lavender); }
+.rp-stat.dark .rp-d { font-size: 15pt; line-height: 1.05; }
+.rp-bars { display: flex; flex-direction: column; }
+.rp-bar { display: grid; grid-template-columns: 62mm 1fr 17mm; gap: 4mm; align-items: center; padding: 2.1mm 0; border-bottom: .25mm solid var(--line); }
+.rp-bar-name { font-size: 8.5pt; font-weight: 600; }
+.rp-bar.zero .rp-bar-name { font-weight: 400; color: var(--text-muted); }
+.rp-bar-track { height: 3.4mm; border-radius: 99px; background: var(--lavender-50); overflow: hidden; }
+.rp-bar-fill { display: block; height: 100%; border-radius: 99px; background: var(--blurple); }
+.rp-bar.top .rp-bar-fill { background: var(--midnight); }
+.rp-bar-val { text-align: right; font-size: 8pt; color: var(--text-soft); }
+.rp-bar-val b { font-family: var(--font-display); font-weight: 800; font-size: 12pt; color: var(--dark); letter-spacing: -0.02em; }
+
+/* Matrix */
+.rp-matrix-wrap { position: relative; padding: 0 0 7mm 8mm; }
+.rp-matrix { position: relative; height: 112mm; border-radius: 4mm; overflow: hidden; }
+.rp-q { position: absolute; width: 50%; height: 50%; padding: 4mm; display: flex; flex-direction: column; gap: .8mm; }
+.rp-q b { font-family: var(--font-display); font-weight: 800; font-size: 13pt; letter-spacing: -0.02em; line-height: .95; }
+.rp-q span { font-size: 6.5pt; color: var(--text-soft); }
+.rp-q.q1 { left: 0; top: 0; background: var(--lavender); }
+.rp-q.q1 b { color: var(--blurple-dark); }
+.rp-q.q2 { right: 0; top: 0; background: var(--lavender-50); align-items: flex-end; text-align: right; }
+.rp-q.q3 { left: 0; bottom: 0; background: var(--offwhite); justify-content: flex-end; }
+.rp-q.q4 { right: 0; bottom: 0; background: #F6F4EF; align-items: flex-end; justify-content: flex-end; text-align: right; }
+.rp-matrix-v, .rp-matrix-h { position: absolute; background: var(--white); }
+.rp-matrix-v { left: calc(50% - .6mm); top: 0; bottom: 0; width: 1.2mm; }
+.rp-matrix-h { top: calc(50% - .6mm); left: 0; right: 0; height: 1.2mm; }
+.rp-matrix .rp-mark { position: absolute; transform: translate(-50%, -50%); width: 7mm; height: 7mm; font-size: 7.5pt; box-shadow: 0 0 0 .6mm var(--white); }
+.rp-axis-x, .rp-axis-y { position: absolute; font-size: 7pt; font-weight: 600; color: var(--text-soft); white-space: nowrap; }
+.rp-axis-x { left: calc(50% + 4mm); bottom: 1mm; transform: translateX(-50%); }
+.rp-axis-y { left: 3.5mm; top: calc(50% - 3.5mm); transform: translate(-50%, -50%) rotate(-90deg); }
+.rp-legend-row { display: grid; grid-template-columns: 7mm 1fr auto; gap: 3mm; align-items: center; padding: 1.6mm 0; border-bottom: .25mm solid var(--line); font-size: 8.5pt; }
+.rp-legend-row small { color: var(--text-muted); font-size: 7.5pt; }
+.rp-legend-row .q { font-size: 7.5pt; color: var(--text-soft); }
+
+/* Business case */
+.rp-big-money { display: grid; grid-template-columns: 1fr auto; gap: 8mm; align-items: end; background: var(--midnight); color: var(--white); border-radius: 4mm; padding: 8mm; position: relative; overflow: hidden; }
+.rp-big-money .rp-d { color: var(--white); font-size: 60pt; display: block; margin-top: 3mm; }
+.rp-big-money .sub { display: block; font-size: 8.5pt; color: var(--lavender); margin-top: 2mm; }
+.rp-big-money .nshape { width: 20mm; height: 20mm; right: 8mm; top: 8mm; }
+.rp-big-money .nshape path { fill: var(--blurple); }
+.rp-formula { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr auto 1.25fr; gap: 3mm; align-items: center; }
+.rp-f { background: var(--offwhite); border-radius: 3mm; padding: 4mm; text-align: center; }
+.rp-f .rp-d { font-size: 20pt; display: block; }
+.rp-f span:last-child { font-size: 7.5pt; color: var(--text-soft); display: block; margin-top: 1mm; }
+.rp-f.res { background: var(--blurple); }
+.rp-f.res span:last-child { color: var(--dark); }
+.rp-op { font-family: var(--font-display); font-weight: 800; font-size: 16pt; color: var(--blurple); }
+.rp-wait { display: flex; flex-direction: column; gap: 2.5mm; }
+.rp-wait-row { display: grid; grid-template-columns: 26mm 1fr 30mm; gap: 4mm; align-items: center; }
+.rp-wait-row span:first-child { font-size: 8.5pt; font-weight: 600; }
+.rp-wait-track { height: 7mm; background: var(--lavender-50); border-radius: 99px; overflow: hidden; }
+.rp-wait-fill { display: block; height: 100%; background: var(--midnight); border-radius: 99px; }
+.rp-wait-row:last-child .rp-wait-fill { background: var(--coral); }
+.rp-wait-row b { font-family: var(--font-display); font-weight: 800; font-size: 14pt; text-align: right; letter-spacing: -0.02em; }
+
+/* Roadmap */
+.rp-phase { display: grid; grid-template-columns: 44mm 1fr; gap: 6mm; padding: 5mm 0; border-top: .35mm solid var(--line); }
+.rp-phase-num { font-family: var(--font-display); font-weight: 800; font-size: 40pt; line-height: .8; letter-spacing: -0.03em; }
+.rp-phase.p1 .rp-phase-num { color: var(--blurple); }
+.rp-phase.p2 .rp-phase-num { color: var(--midnight); }
+.rp-phase.p3 .rp-phase-num { color: var(--blurple-300); }
+.rp-phase.p4 .rp-phase-num { color: var(--text-muted); font-size: 24pt; }
+.rp-phase-t { display: block; font-weight: 700; font-size: 11.5pt; margin-top: 3mm; }
+.rp-phase-w { display: block; font-size: 8pt; color: var(--text-muted); margin-top: .5mm; }
+.rp-phase ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2mm; }
+.rp-phase li { display: grid; grid-template-columns: 7mm 1fr; gap: 2.5mm; align-items: center; font-size: 9pt; }
+.rp-phase li small { display: block; color: var(--text-muted); font-size: 7.5pt; }
+.rp-phase .empty { font-size: 8.5pt; color: var(--text-muted); font-style: italic; margin: 0; }
+
+/* Detailkaarten */
+.rp-item { border: .3mm solid var(--line); box-shadow: inset 0 1.2mm 0 var(--blurple); border-radius: 3mm; padding: 6mm 6mm 5mm; break-inside: avoid; }
+.rp-item.rq-project { box-shadow: inset 0 1.2mm 0 var(--midnight); }
+.rp-item-top { display: flex; align-items: center; gap: 3mm; }
+.rp-item-top small { font-size: 7.5pt; color: var(--text-muted); }
+.rp-item-title { font-weight: 700; font-size: 13pt; line-height: 1.15; margin: 2.5mm 0 3.5mm; }
+.rp-item-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5mm; }
+.rp-item-grid > div { font-size: 8.5pt; line-height: 1.4; color: var(--text-soft); }
+.rp-item-grid .rp-label { display: flex; align-items: center; gap: 1.2mm; color: var(--dark); margin-bottom: 1.2mm; }
+.rp-item-grid .material-symbols-outlined { font-size: 11pt; color: var(--blurple); }
+.rp-item-grid .now { font-style: italic; }
+.rp-item-chips { margin-top: 3.5mm; }
+
+/* Functionaliteiten */
+.rp-fn { display: grid; grid-template-columns: 52mm 1fr 14mm; gap: 4mm; align-items: start; padding: 3mm 0; border-bottom: .25mm solid var(--line); }
+.rp-fn b { font-size: 9.5pt; }
+.rp-fn-track { height: 3mm; border-radius: 99px; background: var(--lavender-50); overflow: hidden; margin: 1.2mm 0 1.8mm; }
+.rp-fn-fill { display: block; height: 100%; background: var(--blurple); border-radius: 99px; }
+.rp-fn p { margin: 0; font-size: 7.5pt; color: var(--text-muted); line-height: 1.35; }
+.rp-fn .rp-d { font-size: 16pt; text-align: right; }
+
+/* Volgende stap */
+.rp-decision { display: grid; grid-template-columns: 14mm 1fr; gap: 5mm; align-items: start; background: var(--lavender); border-radius: 4mm; padding: 7mm; }
+.rp-decision .material-symbols-outlined { width: 14mm; height: 14mm; border-radius: 99px; background: var(--blurple); display: flex; align-items: center; justify-content: center; font-size: 18pt; }
+.rp-decision b { display: block; font-family: var(--font-display); font-weight: 800; font-size: 18pt; letter-spacing: -0.02em; line-height: .95; margin-bottom: 2.5mm; }
+.rp-decision p { margin: 0; font-size: 9.5pt; line-height: 1.4; }
+.rp-decision .date { margin-top: 3mm; font-weight: 700; }
+.rp-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+.rp-step { background: var(--offwhite); border-radius: 3mm; padding: 5mm; }
+.rp-step .rp-d { font-size: 26pt; color: var(--blurple); display: block; }
+.rp-step b { display: block; font-size: 10pt; margin: 2.5mm 0 1.2mm; }
+.rp-step p { margin: 0; font-size: 8pt; color: var(--text-soft); line-height: 1.35; }
+.rp-notes { flex: 1 1 auto !important; min-height: 30mm; border-radius: 3mm; border: .3mm solid var(--line); padding: 5mm; margin-bottom: 6mm;
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 8.5mm, var(--line) 8.5mm, var(--line) 8.8mm);
+  background-origin: content-box; background-clip: content-box; }
+
+/* Achterkant */
+.rp-back { background: var(--midnight); color: var(--white); padding: 18mm 16mm; }
+.rp-back .nshape { --c: var(--blurple); }
+.rp-back .logo { position: relative; z-index: 1; height: 24mm; }
+.rp-back-body { position: absolute; left: 16mm; right: 16mm; bottom: 26mm; z-index: 1; }
+.rp-back-title { font-size: 44pt; color: var(--white); margin: 0 0 8mm; }
+.rp-back-title .u-line { text-decoration-color: var(--coral); }
+.rp-back p { font-size: 10pt; color: var(--lavender); line-height: 1.45; max-width: 140mm; margin: 0 0 14mm; }
+.rp-back-url { font-weight: 700; color: var(--white) !important; margin: 0 !important; }
 
 @media print {
-  @page { margin: 0; size: A4; }
-  #topbar, .story-footer, #toastContainer, .decision-section { display: none !important; }
-  #view-start, #view-scan, #view-priority, #view-businesscase { display: none !important; }
-  .view.active { animation: none; }
-  html, body { background: var(--white); margin: 0; font-size: 13px; }
+  @page { size: A4; margin: 0; }
+  html, body { background: var(--white) !important; margin: 0 !important; }
+  body > *:not(#report) { display: none !important; }
+  #report { position: static; left: auto; visibility: visible; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
-  .card, .panel, .kpi, .story-card, .roadmap-phase { box-shadow: none !important; border: 1px solid var(--line); }
-  .story-card { border-top: 4px solid var(--line); }
-  .story-card-quickwin { border-top-color: var(--blurple); }
-  .story-card-project { border-top-color: var(--midnight); }
-  .wrap { max-width: 100%; padding: 18mm 16mm 24mm; margin: 0; }
-
-  .print-header { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 10px; margin-bottom: 18px; }
-  .print-header .logo { height: 18px; }
-  .print-header-text { font-size: 12px; font-weight: 600; flex: 1; text-align: right; padding-right: 8px; }
-  .print-header-badge { font-weight: 600; font-size: 9.5px; color: var(--white); background: var(--midnight); padding: 3px 10px; border-radius: 999px; }
-  .print-footer { display: block; position: fixed; left: 16mm; right: 16mm; bottom: 8mm; border-top: .75px solid var(--line); padding-top: 6px; font-size: 8.5px; color: var(--text-muted); }
-
-  .story-hero { padding: 28px; gap: 28px; }
-  .hero-gauge, .hero-gauge svg { width: 150px; height: 150px; }
-  .hero-gauge-value { font-size: 60px; }
-  .kpi-row { grid-template-columns: repeat(4, 1fr); }
-  .kpi-value { font-size: 48px; }
-  .story-card, .functie-chip, .heat-tile, .qbar-row, .kpi, .story-hero, .roadmap-phase, .bizcase { break-inside: avoid; page-break-inside: avoid; }
-  .section-head { break-after: avoid; page-break-after: avoid; }
-  .roadmap-track { grid-template-columns: repeat(3, 1fr); }
-  .story-grid { display: block; }
-
-  /* Hoofdstukken: roadmap + functies samen, dan de aanbevelingen, dan de analyse. */
-  #roadmapSection, .section-functies { break-inside: avoid; page-break-inside: avoid; }
-  .story-col-main > .section:first-of-type { break-before: page; page-break-before: always; padding-top: 4mm; }
-  .story-col-side { break-before: page; page-break-before: always; padding-top: 4mm; }
-  .story-hero { grid-template-columns: auto 1fr; }
-  .story-hero-text { padding-right: 90px; }
-  .story-hero .ns-1 { width: 90px; height: 90px; right: 28px; top: 28px; }
-  .story-hero .ns-2 { display: none; }
-  .bizcase-wait { padding-right: 90px; }
-
-  /* Voorkant: Expressive look - volledig Blurple, Dark Blue monotone logo */
-  .print-cover {
-    display: block !important; position: relative; overflow: hidden;
-    height: 297mm; padding: 18mm 16mm; margin: -18mm -16mm 0 -16mm;
-    break-after: page; page-break-after: always; background: var(--blurple);
-  }
-  .print-cover .nshape path { fill: var(--midnight); }
-  .print-cover .pc-1 { width: 120mm; height: 120mm; right: -30mm; top: 40mm; }
-  .print-cover .pc-2 { width: 34mm; height: 34mm; right: 96mm; top: 26mm; }
-  .print-cover .pc-2 path { fill: var(--lavender); }
-  .print-cover .pc-3 { width: 18mm; height: 18mm; right: 22mm; top: 176mm; }
-  .print-cover .logo { position: relative; z-index: 1; height: 26mm; }
-  .print-cover-classification { position: absolute; top: 18mm; right: 16mm; z-index: 1; font-weight: 600; font-size: 9.5px; color: var(--white); background: var(--dark); padding: 4px 12px; border-radius: 999px; }
-  .print-cover-body { position: absolute; left: 16mm; right: 16mm; bottom: 42mm; z-index: 1; }
-  .print-cover-eyebrow { font-size: 14px; color: var(--dark); margin: 0 0 14px; }
-  .print-cover-title { font-family: var(--font-display); font-weight: 800; font-size: 96px; line-height: .95; letter-spacing: -0.02em; color: var(--dark); margin: 0 0 18px; }
-  .print-cover-client { font-weight: 700; font-size: 24px; color: var(--dark); margin: 0; }
-  .print-cover-bottom { position: absolute; left: 16mm; right: 16mm; bottom: 18mm; z-index: 1; display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--dark); padding-top: 10px; font-size: 11px; color: var(--dark); }
-  .print-cover-bottom strong { font-weight: 700; }
-
-  /* Achterkant: Midnight, inverse duotone logo */
-  .print-backcover {
-    display: block !important; position: relative; overflow: hidden;
-    height: 297mm; padding: 18mm 16mm; margin: 0 -16mm -24mm -16mm;
-    break-before: page; page-break-before: always; background: var(--midnight);
-  }
-  .print-backcover .nshape path { fill: var(--blurple); }
-  .print-backcover .pb-1 { width: 110mm; height: 110mm; right: -36mm; top: -30mm; }
-  .print-backcover .pb-2 { width: 26mm; height: 26mm; right: 40mm; top: 120mm; }
-  .print-backcover .pb-2 path { fill: var(--coral); }
-  .print-backcover .logo { position: relative; z-index: 1; height: 26mm; }
-  .print-backcover-body { position: absolute; left: 16mm; right: 16mm; bottom: 30mm; z-index: 1; }
-  .print-backcover-title { font-family: var(--font-display); font-weight: 800; font-size: 60px; line-height: .95; letter-spacing: -0.02em; color: var(--white); margin: 0 0 22px; }
-  .print-backcover-title .u-line { text-decoration-color: var(--coral); }
-  .print-backcover-text { font-size: 13px; color: var(--lavender); line-height: 1.4; max-width: 140mm; margin: 0 0 18mm; }
-  .print-backcover-url { font-weight: 700; font-size: 13px; color: var(--white); margin: 0; }
+  .rp-page { break-after: page; page-break-after: always; }
+  .rp-page:last-child { break-after: auto; page-break-after: auto; }
 }
 </style>
 </head>
@@ -934,30 +1089,7 @@ kbd {
   <section id="view-story" class="view">
     <div class="wrap">
 
-      <div class="print-cover">
-        <span class="nshape pc-1" data-n></span>
-        <span class="nshape pc-2" data-n></span>
-        <span class="nshape pc-3" data-n></span>
-        <span class="logo mono" data-logo="primary" role="img" aria-label="Nmbrs"></span>
-        <span class="print-cover-classification">Vertrouwelijk</span>
-        <div class="print-cover-body">
-          <p class="print-cover-eyebrow">De Groeiversneller &middot; Business Squad</p>
-          <h1 class="print-cover-title">Groei&shy;verhaal</h1>
-          <p class="print-cover-client">Voor <span id="printCoverClient">-</span></p>
-        </div>
-        <div class="print-cover-bottom">
-          <span>Opgesteld op <strong id="printCoverDate">-</strong></span>
-          <span>Groeipotentieel: <strong id="printCoverScore">-</strong> / 100</span>
-        </div>
-      </div>
-
       <div id="printArea">
-        <div class="print-header">
-          <span class="logo" data-logo="secondary" role="img" aria-label="Nmbrs"></span>
-          <span class="print-header-text">Groeiverhaal &middot; <span id="printHeaderClient">-</span></span>
-          <span class="print-header-badge">Vertrouwelijk</span>
-        </div>
-
         <div class="story-hero">
           <span class="nshape ns-1" data-n></span>
           <span class="nshape ns-2" data-n></span>
@@ -1042,21 +1174,6 @@ kbd {
         </div>
       </div>
 
-      <div class="print-footer">
-        <span>&copy;<span id="printYear">2026</span> Nmbrs&nbsp;&nbsp;|&nbsp;&nbsp;All rights reserved&nbsp;&nbsp;|&nbsp;&nbsp;Classificatie: Vertrouwelijk</span>
-      </div>
-
-      <div class="print-backcover">
-        <span class="nshape pb-1" data-n></span>
-        <span class="nshape pb-2" data-n></span>
-        <span class="logo inverse" data-logo="primary" role="img" aria-label="Nmbrs"></span>
-        <div class="print-backcover-body">
-          <h2 class="print-backcover-title">Jullie hebben het inzicht.<br>Nmbrs helpt het <span class="u-line">waar te maken.</span></h2>
-          <p class="print-backcover-text">Dank voor de tijd en openheid tijdens deze sessie. Dit Groeiverhaal is het vertrekpunt: samen bepalen we welke stap het eerst wordt opgepakt, en wat dat betekent voor <span id="printBackcoverClient">-</span>.</p>
-          <p class="print-backcover-url">nmbrs.com</p>
-        </div>
-      </div>
-
       <div class="decision-section" id="decisionSection">
         <span class="nshape" data-n></span>
         <h3 class="decision-title display display-s">Wat wordt de eerste stap?</h3>
@@ -1099,6 +1216,7 @@ kbd {
 </main>
 
 <div id="toastContainer" aria-live="polite"></div>
+<div id="report" aria-hidden="true"></div>
 
 <script>
 // Groei Versneller - datamodel
@@ -2344,10 +2462,7 @@ const THEMES = [
   function buildStory() {
     const data = computeStoryData();
     const groups = data.groups;
-    ["#storyClientName", "#printHeaderClient", "#printCoverClient", "#printBackcoverClient"].forEach(sel => { $(sel).textContent = state.client; });
-    $("#printCoverDate").textContent = todayLabel();
-    $("#printCoverScore").textContent = data.score;
-    $("#printYear").textContent = new Date().getFullYear();
+    $("#storyClientName").textContent = state.client;
 
     animateNumber(heroGaugeValue, 0, data.score, 1200);
     setGaugeArc(heroGaugeArc, 0);
@@ -2485,7 +2600,7 @@ const THEMES = [
     showView("start");
   });
 
-  $("#printBtn").addEventListener("click", () => window.print());
+  $("#printBtn").addEventListener("click", () => printReport());
 
   // ---------------------------------------------------------------
   // EXPORT NAAR GOOGLE DOC (via een Zapier-webhook)
@@ -2633,6 +2748,321 @@ const THEMES = [
     state.decisionDate = decisionDateInput.value;
     saveSession();
   });
+
+  // ---------------------------------------------------------------
+  // RAPPORT (A4): een apart ontworpen document op basis van dezelfde
+  // data als het Groeiverhaal. Inhoud die niet op één pagina past,
+  // loopt door op een vervolgpagina; blokken worden nooit gesplitst.
+  // ---------------------------------------------------------------
+  const reportEl = $("#report");
+  const Q_LABEL = { quickwin: "Quick win", project: "Groot project", nice: "Nice to have", reconsider: "Heroverwegen" };
+
+  function firstSentence(s) {
+    const m = String(s).match(/^.*?[.!?](\s|$)/);
+    return (m ? m[0] : s).trim();
+  }
+
+  function gaugeSvg(score) {
+    const r = 40, c = 2 * Math.PI * r;
+    return '<svg viewBox="0 0 100 100" aria-hidden="true">' +
+      '<circle cx="50" cy="50" r="' + r + '" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="9"/>' +
+      '<circle cx="50" cy="50" r="' + r + '" fill="none" stroke="#00001D" stroke-width="9" stroke-linecap="round" ' +
+      'stroke-dasharray="' + c.toFixed(2) + '" stroke-dashoffset="' + (c * (1 - score / 100)).toFixed(2) + '"/></svg>';
+  }
+
+  function buildReport() {
+    const data = computeStoryData();
+    const g = data.groups;
+    const client = escapeHtml(state.client || "deze organisatie");
+    const year = new Date().getFullYear();
+    reportEl.innerHTML = "";
+
+    // Vaste nummering van alle geplaatste pijnpunten, in volgorde van prioriteit.
+    const ordered = [];
+    ["quickwin", "project", "nice", "reconsider"].forEach(q => g[q].forEach(x => ordered.push(Object.assign({ q }, x))));
+    const nr = {};
+    ordered.forEach((x, i) => { nr[x.key] = i + 1; });
+    const mark = (key, q) => '<span class="rp-mark rq-' + q + '">' + nr[key] + '</span>';
+
+    const pages = [];
+    let secCount = 0;
+
+    function addGraphics(p) {
+      $$("[data-logo]", p).forEach(el => { el.innerHTML = logoSvg(el.dataset.logo); });
+      $$("[data-n]", p).forEach(el => { el.innerHTML = nshapeSvg(); });
+    }
+    function newPage(cls, label) {
+      const p = document.createElement("section");
+      p.className = "rp-page " + (cls || "");
+      if (label !== undefined) {
+        p.innerHTML =
+          '<header class="rp-head"><span class="logo" data-logo="secondary"></span>' +
+          '<span class="rp-head-meta"><b>' + label + '</b>Groeiverhaal &middot; ' + client + '</span></header>' +
+          '<div class="rp-body"></div>' +
+          '<footer class="rp-foot"><span>Vertrouwelijk &middot; &copy; ' + year + ' Nmbrs &middot; nmbrs.com</span><span class="rp-pnum"></span></footer>';
+      }
+      reportEl.appendChild(p);
+      addGraphics(p);
+      pages.push(p);
+      return p;
+    }
+    const bodyOf = p => $(".rp-body", p);
+    const overflows = p => { const b = bodyOf(p); return b.scrollHeight > b.clientHeight + 1; };
+    function node(html) {
+      const t = document.createElement("template");
+      t.innerHTML = html.trim();
+      return t.content.firstElementChild;
+    }
+    function secHead(title, lead) {
+      secCount++;
+      return '<div class="rp-sec"><span class="rp-sec-num">' + String(secCount).padStart(2, "0") + '</span>' +
+        '<h2 class="rp-sec-title">' + title + '</h2>' + (lead ? '<p class="rp-sec-lead">' + lead + '</p>' : '') + '</div>';
+    }
+    // Sectie met doorloop: elk blok gaat naar de volgende pagina als het niet meer past.
+    function section(label, title, lead, blocks) {
+      let p = newPage("", label);
+      bodyOf(p).appendChild(node(secHead(title, lead)));
+      blocks.forEach(html => {
+        const n = node(html);
+        bodyOf(p).appendChild(n);
+        if (overflows(p) && bodyOf(p).children.length > 1) {
+          n.remove();
+          p = newPage("", label);
+          bodyOf(p).appendChild(node('<p class="rp-cont">' + title + ' &middot; vervolg</p>'));
+          bodyOf(p).appendChild(n);
+          addGraphics(n);
+        } else {
+          addGraphics(n);
+        }
+      });
+      return p;
+    }
+
+    // 1. Cover -------------------------------------------------------
+    const cover = newPage("rp-cover");
+    cover.innerHTML =
+      '<span class="nshape" data-n style="width:118mm;height:118mm;right:-34mm;top:44mm"></span>' +
+      '<span class="nshape" data-n style="width:30mm;height:30mm;right:98mm;top:30mm;--c:var(--lavender)"></span>' +
+      '<span class="nshape" data-n style="width:16mm;height:16mm;right:20mm;top:178mm"></span>' +
+      '<span class="logo mono" data-logo="primary" role="img" aria-label="Nmbrs"></span>' +
+      '<span class="rp-cover-class">Vertrouwelijk</span>' +
+      '<div class="rp-cover-body">' +
+        '<p class="rp-cover-eyebrow">De Groeiversneller &middot; Business Squad</p>' +
+        '<h1 class="rp-cover-title rp-d">Groei&shy;verhaal</h1>' +
+        '<p class="rp-cover-client">voor ' + client + '</p>' +
+      '</div>' +
+      '<div class="rp-cover-meta">' +
+        '<div><span>Opgesteld op</span><strong>' + todayLabel() + '</strong></div>' +
+        '<div><span>Groeipotentieel</span><strong>' + data.score + ' / 100</strong></div>' +
+        '<div><span>Pijnpunten geprioriteerd</span><strong>' + data.totalPlaced + ' van ' + data.totalFlagged + '</strong></div>' +
+      '</div>';
+    addGraphics(cover);
+
+    // 2. In één oogopslag --------------------------------------------
+    const startWith = g.quickwin.concat(g.project).slice(0, 3);
+    const p2 = newPage("", "Samenvatting");
+    let html = secHead("In &eacute;&eacute;n oogopslag");
+    html +=
+      '<div class="rp-hero"><span class="nshape" data-n></span>' +
+        '<div class="rp-gauge">' + gaugeSvg(data.score) + '<div class="rp-gauge-val"><span class="rp-d">' + data.score + '</span><span>van 100</span></div></div>' +
+        '<div><span class="rp-label">Groeipotentieel</span><p>' + escapeHtml(data.narrative) + '</p></div>' +
+      '</div>' +
+      '<div class="rp-kpis">' +
+        '<div class="rp-kpi"><span class="rp-d">' + data.totalFlagged + '</span><span>pijnpunten gevonden</span></div>' +
+        '<div class="rp-kpi accent"><span class="rp-d">' + g.quickwin.length + '</span><span>quick wins</span></div>' +
+        '<div class="rp-kpi"><span class="rp-d">' + g.project.length + '</span><span>grote projecten</span></div>' +
+        '<div class="rp-kpi"><span class="rp-d">' + data.sortedFuncties.length + '</span><span>Nmbrs-functionaliteiten die helpen</span></div>' +
+      '</div>';
+    if (data.bizAnnual > 0) {
+      html +=
+        '<div class="rp-money"><div><span class="rp-hl">De business case</span><span class="rp-d">' + formatEuro(data.bizAnnual) + '</span>' +
+          '<span class="sub">geschatte kosten per jaar, op basis van de eigen inschatting</span></div>' +
+          '<div class="wait"><span class="sub" style="margin:0">Kosten van wachten</span><span class="rp-d">' + formatEuro(data.bizMonthly) + '</span><span class="sub">per maand</span></div></div>';
+    }
+    if (startWith.length) {
+      html += '<div><h3 class="rp-h3">Hier beginnen we mee</h3></div><div class="rp-top">' +
+        startWith.map((x, i) =>
+          '<div class="rp-top-row"><span class="rp-d">' + String(i + 1).padStart(2, "0") + '</span><div><b>' + escapeHtml(x.item.titel) + '</b>' +
+          '<small>' + escapeHtml(x.theme.naam) + ' &middot; ' + (g.quickwin.includes(x) ? "Quick win" : "Groot project") + '</small>' +
+          '<p>' + escapeHtml(firstSentence(x.item.waarde)) + '</p></div></div>').join("") + '</div>';
+    }
+    html += '<div class="rp-explain"><span class="material-symbols-outlined" aria-hidden="true">info</span>' +
+      '<p class="rp-note"><b>Zo lees je het groeipotentieel.</b> De score (0&ndash;100) laat zien hoeveel van de gevonden pijnpunten op korte termijn waarde kunnen opleveren. Quick wins tellen het zwaarst, grote projecten iets minder, nice-to-haves en punten om te heroverwegen het minst. Pijnpunten die nog niet geprioriteerd zijn, tellen nog niet mee.</p></div>';
+    bodyOf(p2).innerHTML = html;
+    addGraphics(p2);
+    // Vangnet: past het niet, dan eerst de uitleg weg, daarna de toelichting per actie.
+    if (overflows(p2)) { const ex = $(".rp-explain", p2); if (ex) ex.remove(); }
+    $$(".rp-top-row p", p2).reverse().forEach(el => { if (overflows(p2)) el.remove(); });
+
+    // 3. Waar zit de pijn ---------------------------------------------
+    const themeRows = THEMES.map((t, i) => ({ t, i, n: data.themeCounts[t.id] || 0 }))
+      .sort((a, b) => (b.n / b.t.items.length) - (a.n / a.t.items.length) || b.n - a.n || a.i - b.i);
+    const touched = themeRows.filter(r => r.n > 0).length;
+    const totalItems = THEMES.reduce((a, t) => a + t.items.length, 0);
+    const topRow = themeRows[0] && themeRows[0].n > 0 ? themeRows[0] : null;
+    const p3 = newPage("", "Analyse");
+    bodyOf(p3).innerHTML = secHead("Waar zit de pijn?", "Per thema het aandeel stellingen dat vandaag (nog) niet klopt. Hoe langer de balk, hoe meer winst er in dat thema te halen valt.") +
+      '<div class="rp-stats">' +
+        '<div class="rp-stat"><span class="rp-d">' + data.totalFlagged + ' / ' + totalItems + '</span><span>stellingen herkend als pijnpunt</span></div>' +
+        '<div class="rp-stat"><span class="rp-d">' + touched + ' / ' + THEMES.length + '</span><span>thema\'s met minstens &eacute;&eacute;n pijnpunt</span></div>' +
+        '<div class="rp-stat dark"><span class="rp-d">' + (topRow ? escapeHtml(topRow.t.naam) : "&ndash;") + '</span><span>' + (topRow ? "thema met de meeste ruimte voor verbetering" : "nog geen pijnpunten gevonden") + '</span></div>' +
+      '</div>' +
+      '<div class="rp-bars">' + themeRows.map((r, idx) => {
+        const pct = r.n / r.t.items.length * 100;
+        return '<div class="rp-bar' + (r.n === 0 ? " zero" : "") + (idx === 0 && r.n > 0 ? " top" : "") + '">' +
+          '<span class="rp-bar-name">' + escapeHtml(r.t.naam) + '</span>' +
+          '<span class="rp-bar-track"><span class="rp-bar-fill" style="width:' + pct + '%"></span></span>' +
+          '<span class="rp-bar-val"><b>' + r.n + '</b> van ' + r.t.items.length + '</span></div>';
+      }).join("") + '</div>';
+
+    // 4. Prioriteiten op de matrix ------------------------------------
+    const matrixHtml =
+      '<div class="rp-matrix-wrap"><div class="rp-matrix">' +
+        '<div class="rp-q q1"><b>Quick wins</b><span>Hoge impact, lage inspanning</span></div>' +
+        '<div class="rp-q q2"><b>Grote projecten</b><span>Hoge impact, hoge inspanning</span></div>' +
+        '<div class="rp-q q3"><b>Nice to have</b><span>Lage impact, lage inspanning</span></div>' +
+        '<div class="rp-q q4"><b>Heroverwegen</b><span>Lage impact, hoge inspanning</span></div>' +
+        '<div class="rp-matrix-v"></div><div class="rp-matrix-h"></div>' +
+        ordered.map(x => {
+          const p = state.placements[x.key];
+          return '<span class="rp-mark rq-' + x.q + '" style="left:' + p.xPct + '%;top:' + p.yPct + '%">' + nr[x.key] + '</span>';
+        }).join("") +
+      '</div><span class="rp-axis-x">Inspanning om te realiseren &rarr;</span><span class="rp-axis-y">Impact op de organisatie &rarr;</span></div>';
+    const legend = ordered.map(x =>
+      '<div class="rp-legend-row">' + mark(x.key, x.q) + '<span>' + escapeHtml(x.item.titel) + ' <small>&middot; ' + escapeHtml(x.theme.naam) + '</small></span><span class="q">' + Q_LABEL[x.q] + '</span></div>');
+    const unplaced = Array.from(state.flagged).filter(k => !state.placements[k]).map(k => findItem(k)).filter(Boolean);
+    if (unplaced.length) {
+      legend.push('<p class="rp-note" style="margin-top:3mm">Nog niet geprioriteerd: ' + unplaced.map(f => escapeHtml(f.item.titel)).join(", ") + '.</p>');
+    }
+    section("Prioriteiten", "Samen geprioriteerd",
+      "Zo hebben we de pijnpunten tijdens de sessie op de matrix gezet. De nummers komen in de rest van dit rapport terug.",
+      [matrixHtml].concat(legend));
+
+    // 5. Business case -------------------------------------------------
+    if (data.bizAnnual > 0) {
+      const p5 = newPage("", "Business case");
+      const months = [1, 3, 6, 12];
+      const max = data.bizMonthly * 12;
+      bodyOf(p5).innerHTML = secHead("De business case", "Wat kosten de gevonden knelpunten vandaag? Geen benchmark, maar de eigen inschatting van " + client + ". Daarmee is het jullie getal.") +
+        '<div class="rp-big-money"><span class="nshape" data-n></span><div><span class="rp-hl">Geschatte kosten per jaar</span><span class="rp-d">' + formatEuro(data.bizAnnual) + '</span>' +
+          '<span class="sub">aan tijd die nu in de gevonden knelpunten gaat zitten</span></div></div>' +
+        '<div><h3 class="rp-h3">Zo komen we aan dit bedrag</h3></div>' +
+        '<div class="rp-formula">' +
+          '<div class="rp-f"><span class="rp-d">' + String(state.bizHours).replace(".", ",") + '</span><span>uur per week</span></div><span class="rp-op">&times;</span>' +
+          '<div class="rp-f"><span class="rp-d">52</span><span>weken per jaar</span></div><span class="rp-op">&times;</span>' +
+          '<div class="rp-f"><span class="rp-d">' + formatEuro(state.bizRate) + '</span><span>uurtarief (bruto)</span></div><span class="rp-op">=</span>' +
+          '<div class="rp-f res"><span class="rp-d">' + formatEuro(data.bizAnnual) + '</span><span>per jaar</span></div>' +
+        '</div>' +
+        '<div><h3 class="rp-h3">Wat kost uitstel?</h3><p class="rp-note" style="margin-top:1mm">Elke maand dat de knelpunten blijven liggen, lopen de kosten op.</p></div>' +
+        '<div class="rp-wait">' + months.map(m =>
+          '<div class="rp-wait-row"><span>' + (m === 1 ? "1 maand" : m + " maanden") + '</span>' +
+          '<span class="rp-wait-track"><span class="rp-wait-fill" style="width:' + (data.bizMonthly * m / max * 100) + '%"></span></span>' +
+          '<b>' + formatEuro(data.bizMonthly * m) + '</b></div>').join("") + '</div>' +
+        '<p class="rp-note" style="margin-top:auto !important;margin-bottom:6mm">Dit is een inschatting op basis van de cijfers die ' + client + ' zelf heeft aangedragen. Indirecte kosten zoals fouten, herstelwerk, verloop of compliance-risico\'s zijn niet meegerekend; de werkelijke impact ligt daarom eerder hoger dan lager.</p>';
+      addGraphics(p5);
+    }
+
+    // 6. Roadmap ---------------------------------------------------------
+    const phase = (cls, num, title, when, items, emptyText) =>
+      '<div class="rp-phase ' + cls + '"><div><span class="rp-phase-num">' + num + '</span><span class="rp-phase-t">' + title + '</span><span class="rp-phase-w">' + when + '</span></div>' +
+      (items.length
+        ? '<ul>' + items.map(x => '<li>' + mark(x.key, x.q) + '<span>' + escapeHtml(x.item.titel) + '<small>' + escapeHtml(x.theme.naam) + '</small></span></li>').join("") + '</ul>'
+        : '<p class="empty">' + emptyText + '</p>') + '</div>';
+    const withQ = (arr, q) => arr.map(x => Object.assign({ q }, x));
+    const roadmapBlocks = [
+      phase("p1", "01", "Quick wins", "Deze maand", withQ(g.quickwin, "quickwin"), "Geen quick wins geplaatst."),
+      phase("p2", "02", "Grote projecten", "Dit kwartaal", withQ(g.project, "project"), "Geen grote projecten geplaatst."),
+      phase("p3", "03", "Nice to have", "Wanneer het past", withQ(g.nice, "nice"), "Niets in deze fase."),
+    ];
+    if (g.reconsider.length) roadmapBlocks.push(phase("p4", "&ndash;", "Bewust geparkeerd", "Heroverwegen", withQ(g.reconsider, "reconsider"), ""));
+    section("Roadmap", "De roadmap", "Niet alles hoeft in &eacute;&eacute;n keer. Dit is een haalbare volgorde, met de snelste waarde voorop.", roadmapBlocks);
+
+    // 7. Aanbevelingen in detail ------------------------------------------
+    const itemCard = (x, q) =>
+      '<div class="rp-item rq-' + q + '">' +
+        '<div class="rp-item-top">' + mark(x.key, q) + '<small>' + escapeHtml(x.theme.naam) + ' &middot; ' + Q_LABEL[q] + '</small></div>' +
+        '<div class="rp-item-title">' + escapeHtml(x.item.titel) + '</div>' +
+        '<div class="rp-item-grid">' +
+          '<div><span class="rp-label"><span class="material-symbols-outlined" aria-hidden="true">error</span>Klopt nu nog niet</span><span class="now">&ldquo;' + escapeHtml(x.item.stelling) + '&rdquo;</span></div>' +
+          '<div><span class="rp-label"><span class="material-symbols-outlined" aria-hidden="true">lightbulb</span>Oplossing</span>' + escapeHtml(x.item.oplossing) + '</div>' +
+          '<div><span class="rp-label"><span class="material-symbols-outlined" aria-hidden="true">trending_up</span>Waarde</span>' + escapeHtml(x.item.waarde) + '</div>' +
+        '</div>' +
+        '<div class="rp-item-chips">' + (x.item.functies || []).map(f => '<span class="rp-chip">' + escapeHtml(f) + '</span>').join("") + '</div>' +
+      '</div>';
+    if (g.quickwin.length) {
+      section("Aanbevelingen", "Quick wins", "Hoge impact, lage inspanning: hiermee is direct resultaat te boeken.", g.quickwin.map(x => itemCard(x, "quickwin")));
+    }
+    if (g.project.length) {
+      section("Aanbevelingen", "Grote projecten", "Hoge impact, meer inspanning: deze verdienen een plek op de roadmap en leveren blijvende waarde op.", g.project.map(x => itemCard(x, "project")));
+    }
+
+    // 8. Nmbrs-functionaliteiten ------------------------------------------
+    if (data.sortedFuncties.length) {
+      const maxF = data.sortedFuncties[0][1];
+      const solves = {};
+      Array.from(state.flagged).forEach(k => {
+        const f = findItem(k);
+        if (f) (f.item.functies || []).forEach(fn => { (solves[fn] = solves[fn] || []).push(k); });
+      });
+      const label = k => { const f = findItem(k); return (nr[k] ? "#" + nr[k] + " " : "") + f.item.titel; };
+      section("Oplossingen", "Zo helpt Nmbrs",
+        "De Nmbrs-functionaliteiten die de gevonden pijnpunten direct aanpakken, gerangschikt op impact.",
+        data.sortedFuncties.map(([naam, count]) =>
+          '<div class="rp-fn"><b>' + escapeHtml(naam) + '</b><div><span class="rp-fn-track" style="display:block"><span class="rp-fn-fill" style="width:' + (count / maxF * 100) + '%"></span></span>' +
+          '<p>Lost op: ' + (solves[naam] || []).map(k => escapeHtml(label(k))).join(", ") + '</p></div>' +
+          '<span class="rp-d">' + count + '</span></div>'));
+    }
+
+    // 9. Volgende stap ----------------------------------------------------
+    const p9 = newPage("", "Volgende stap");
+    const dIcon = { quickwin: "bolt", voorstel: "assignment", wachten: "schedule" };
+    let decisionHtml;
+    if (state.decision) {
+      decisionHtml = '<div class="rp-decision"><span class="material-symbols-outlined" aria-hidden="true">' + dIcon[state.decision] + '</span><div>' +
+        '<span class="rp-label">Afgesproken eerste stap</span><b>' + DECISION_LABELS[state.decision] + '</b>' +
+        '<p>' + escapeHtml(DECISION_COPY[state.decision]()) + '</p>' +
+        (state.decisionDate ? '<p class="date">Gewenste startdatum: ' + new Date(state.decisionDate + "T12:00:00").toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" }) + '</p>' : '') +
+        '</div></div>';
+    } else {
+      decisionHtml = '<div class="rp-decision"><span class="material-symbols-outlined" aria-hidden="true">flag</span><div><span class="rp-label">Eerste stap</span><b>Nog te bepalen</b>' +
+        '<p>Starten met de quick wins, een compleet voorstel inclusief training en implementatie, of eerst intern afstemmen: samen kiezen we wat logisch voelt.</p></div></div>';
+    }
+    bodyOf(p9).innerHTML = secHead("De volgende stap", "Van inzicht naar resultaat. Zo gaan we samen verder.") + decisionHtml +
+      '<div class="rp-steps">' +
+        '<div class="rp-step"><span class="rp-d">01</span><b>Vervolgafspraak</b><p>We plannen een moment om dit Groeiverhaal met de juiste mensen door te nemen.</p></div>' +
+        '<div class="rp-step"><span class="rp-d">02</span><b>Voorstel op maat</b><p>Een concreet plan met training en implementatie, afgestemd op de prioriteiten in dit rapport.</p></div>' +
+        '<div class="rp-step"><span class="rp-d">03</span><b>Eerste resultaat</b><p>We starten met de quick win met de meeste impact, zodat de waarde direct zichtbaar wordt.</p></div>' +
+      '</div>' +
+      '<div><h3 class="rp-h3">Notities</h3></div><div class="rp-notes"></div>';
+    addGraphics(p9);
+
+    // 10. Achterkant ------------------------------------------------------
+    const back = newPage("rp-back");
+    back.innerHTML =
+      '<span class="nshape" data-n style="width:104mm;height:104mm;right:-30mm;top:-28mm"></span>' +
+      '<span class="nshape" data-n style="width:24mm;height:24mm;right:40mm;top:118mm;--c:var(--coral)"></span>' +
+      '<span class="logo inverse" data-logo="primary" role="img" aria-label="Nmbrs"></span>' +
+      '<div class="rp-back-body">' +
+        '<h2 class="rp-back-title rp-d">Jullie hebben het inzicht. Nmbrs helpt het <span class="u-line">waar te maken.</span></h2>' +
+        '<p>Dank voor de tijd en openheid tijdens deze sessie. Dit Groeiverhaal is het vertrekpunt: samen bepalen we welke stap het eerst wordt opgepakt, en wat dat betekent voor ' + client + '.</p>' +
+        '<p class="rp-back-url">nmbrs.com</p>' +
+      '</div>';
+    addGraphics(back);
+
+    // Paginanummers (cover en achterkant tellen mee, maar tonen geen nummer)
+    pages.forEach((p, i) => {
+      const el = $(".rp-pnum", p);
+      if (el) el.innerHTML = String(i + 1).padStart(2, "0") + '<small>/ ' + String(pages.length).padStart(2, "0") + '</small>';
+    });
+  }
+
+  async function printReport() {
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (e) { /* doorgaan */ }
+    buildReport();
+    window.print();
+  }
+  // Ook bij Ctrl/Cmd+P altijd een actueel rapport.
+  window.addEventListener("beforeprint", () => { if (state.client) buildReport(); });
 
   // ---------------------------------------------------------------
   // INIT

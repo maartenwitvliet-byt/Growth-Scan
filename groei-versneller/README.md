@@ -35,4 +35,10 @@ stelling `titel`, `stelling`, `oplossing`, `waarde` en `functies`.
 - Met "Verstuur naar Google Doc" post je naar een Zapier Catch Hook. Het tandwiel
   overschrijft de URL per browser. De payload bevat sinds deze versie ook
   `eerste_stap` en `gewenste_startdatum`.
-- Print / PDF levert een A4-rapport op, met voor- en achterkant.
+- **Download als PDF** bouwt een apart ontworpen A4-rapport op uit de sessiedata.
+  Het bevat een cover, een samenvatting, de analyse per thema, de matrix met
+  genummerde pijnpunten, de business case, de roadmap, de aanbevelingen in
+  detail, de Nmbrs-oplossingen en de volgende stap met ruimte voor notities, en
+  sluit af met een achterkant. Lange secties lopen door op vervolgpagina's
+  zonder dat een blok wordt gesplitst. Kies in het printvenster "Opslaan als
+  PDF", met marges "Geen" en "Achtergrondafbeeldingen" aan.
