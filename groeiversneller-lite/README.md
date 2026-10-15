@@ -6,7 +6,7 @@ downloaden ze pas nadat ze hun NAWET-gegevens hebben achtergelaten. Die gegevens
 komen in een Google Sheet, zodat sales ze kan opvolgen.
 
 ## Flow
-1. **Start** – herkenbaar aan de campagne: "Meer groei. Minder gedoe.", "Meer tijd. Minder zorgen.", "Grow, grow, go!".
+1. **Start** – herkenbaar aan de campagne: "Meer groei. Minder gedoe.", "Meer tijd. Minder zorgen.", "GoGoGrow!".
 2. **Scan** – 5 thema's, 26 stellingen: Arbeidsvoorwaarden & Contract, Voorbereiden op eerste werkdag,
    Administratie bij indiensttreding, Salarisverwerking, Ontwikkeling van medewerkers.
    De invuller tikt aan wat binnen het eigen bedrijf nog niet goed is ingeregeld.

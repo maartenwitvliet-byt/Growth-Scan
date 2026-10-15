@@ -781,7 +781,7 @@
 
   priorityToBizCaseBtn.addEventListener("click", () => {
     if (state.flagged.size > 0 && Object.keys(state.placements).length === 0) {
-      showToast("Sleep minstens 1 kaartje op de matrix om te starten.");
+      showToast("Zet minstens 1 kaartje op de matrix: sleep het, of tik het aan en kies een vak.");
       return;
     }
     goTo("businesscase");
@@ -1597,7 +1597,7 @@
       decisionHtml = '<div class="rp-decision"><span class="material-symbols-outlined" aria-hidden="true">flag</span><div><span class="rp-label">Eerste stap</span><b>Nog te bepalen</b>' +
         '<p>Zelf starten met de quick wins, kennismaken met Nmbrs Payroll, of eerst intern afstemmen: kies wat voor jou logisch voelt.</p></div></div>';
     }
-    bodyOf(p9).innerHTML = secHead("De volgende stap", "Van inzicht naar groei. Grow, grow, go!") + decisionHtml +
+    bodyOf(p9).innerHTML = secHead("De volgende stap", "Van inzicht naar groei. GoGoGrow!") + decisionHtml +
       '<div class="rp-steps">' +
         '<div class="rp-step"><span class="rp-d">01</span><b>Kennismaking</b><p>Een Nmbrs-specialist neemt dit groeiverhaal met je door en kijkt mee naar jouw situatie.</p></div>' +
         '<div class="rp-step"><span class="rp-d">02</span><b>Voorstel op maat</b><p>Een concreet plan met training en implementatie, afgestemd op de prioriteiten in dit rapport.</p></div>' +
