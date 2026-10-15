@@ -32,7 +32,7 @@
     view: "start",
     bizHours: null,
     bizRate: 45,
-    decision: null,               // "quickwin" | "voorstel" | "wachten" | null
+    decision: null,               // "quickwin" | "kennismaken" | "wachten" | null
     decisionDate: "",
     sessionId: "",                // vaste ID per sessie (voor centrale opslag)
     startedAt: "",
@@ -360,7 +360,7 @@
     });
     state.bizHours = s.bizHours == null ? null : s.bizHours;
     state.bizRate = s.bizRate == null ? 45 : s.bizRate;
-    state.decision = s.decision || null;
+    state.decision = s.decision === "voorstel" ? "kennismaken" : (DECISION_LABELS[s.decision] ? s.decision : null);
     state.decisionDate = s.decisionDate || "";
     state.lead = s.lead && s.lead.email ? s.lead : null;
     // Een nieuwe campagnelink wint van de bron uit de bewaarde sessie.
@@ -1117,8 +1117,19 @@
   }
 
   function requestPdf() {
+    if (!state.decision) { askForDecision(); return; }
     if (state.lead) { downloadPdf(); return; }
     openLeadGate();
+  }
+
+  // Een eerste stap kiezen is verplicht voor de download.
+  function askForDecision() {
+    const sec = $("#decisionSection");
+    sec.scrollIntoView({ behavior: "smooth", block: "center" });
+    sec.classList.remove("needs-choice");
+    void sec.offsetWidth; // animatie opnieuw starten
+    sec.classList.add("needs-choice");
+    showToast("Kies eerst je eerste stap, dan download je je groeiverhaal.");
   }
 
   function openLeadGate() {
@@ -1262,19 +1273,19 @@
   const decisionDateInput = $("#decisionDate");
 
   const DECISION_LABELS = {
-    quickwin: "Ik wil starten met de quick wins",
-    voorstel: "Ik wil een voorstel op maat",
-    wachten: "Ik oriënteer me nog",
+    quickwin: "Ik wil zelf starten met de quick wins",
+    kennismaken: "Ik wil kennismaken met Nmbrs Payroll",
+    wachten: "Ik oriënteer me nog, benader me over een tijdje nog eens",
   };
 
   const DECISION_COPY = {
     quickwin: () => {
       const first = groupByQuadrant().quickwin[0];
       const firstTitle = first ? first.item.titel : "de eerste quick win";
-      return "Mooi. Dan is ‘" + firstTitle + "’ een logische eerste stap. Wanneer zou je willen starten? Een Nmbrs-specialist helpt je graag op weg.";
+      return "Mooi. Dan is ‘" + firstTitle + "’ een logische eerste stap. Wanneer wil je starten? In je groeiverhaal staat per quick win de oplossing en de waarde.";
     },
-    voorstel: () => "Top. Download je groeiverhaal, dan neemt een Nmbrs-specialist contact met je op om deze aanbevelingen te vertalen naar een voorstel op maat, inclusief training en implementatie.",
-    wachten: () => "Helemaal goed. Download je groeiverhaal en neem het mee in je interne overleg. Vragen of sparren? We denken graag met je mee.",
+    kennismaken: () => "Top. Download je groeiverhaal, dan neemt een Nmbrs-specialist contact met je op voor een kennismaking. We laten je zien hoe Nmbrs Payroll jouw pijnpunten oplost.",
+    wachten: () => "Helemaal goed. Download je groeiverhaal en neem het mee in je interne overleg. We nemen over een tijdje nog eens contact met je op.",
   };
 
   function renderDecisionUI() {
@@ -1296,6 +1307,7 @@
 
   $$(".decision-card", decisionCardsEl).forEach(card => {
     card.addEventListener("click", () => {
+      $("#decisionSection").classList.remove("needs-choice");
       state.decision = card.dataset.decision;
       renderDecisionUI();
       saveSession();
@@ -1573,7 +1585,7 @@
 
     // 9. Volgende stap ----------------------------------------------------
     const p9 = newPage("", "Volgende stap");
-    const dIcon = { quickwin: "bolt", voorstel: "assignment", wachten: "schedule" };
+    const dIcon = { quickwin: "bolt", kennismaken: "handshake", wachten: "schedule" };
     let decisionHtml;
     if (state.decision) {
       decisionHtml = '<div class="rp-decision"><span class="material-symbols-outlined" aria-hidden="true">' + dIcon[state.decision] + '</span><div>' +
@@ -1583,7 +1595,7 @@
         '</div></div>';
     } else {
       decisionHtml = '<div class="rp-decision"><span class="material-symbols-outlined" aria-hidden="true">flag</span><div><span class="rp-label">Eerste stap</span><b>Nog te bepalen</b>' +
-        '<p>Starten met de quick wins, een voorstel op maat inclusief training en implementatie, of eerst intern afstemmen: kies wat voor jou logisch voelt.</p></div></div>';
+        '<p>Zelf starten met de quick wins, kennismaken met Nmbrs Payroll, of eerst intern afstemmen: kies wat voor jou logisch voelt.</p></div></div>';
     }
     bodyOf(p9).innerHTML = secHead("De volgende stap", "Van inzicht naar groei. Grow, grow, go!") + decisionHtml +
       '<div class="rp-steps">' +
@@ -1686,6 +1698,7 @@
   $("#pdfCloseBtn").addEventListener("click", () => { pdfOverlay.classList.add("hidden"); resetPdfOverlay(); });
 
   async function downloadPdf() {
+    if (!state.decision) { askForDecision(); return; }
     if (!state.lead) { openLeadGate(); return; }
     const btn = $("#printBtn");
     if (!window.html2canvas || !window.jspdf) {
@@ -1732,7 +1745,7 @@
   }
 
   async function printReport() {
-    if (!state.lead) { openLeadGate(); return; }
+    if (!state.decision || !state.lead) { requestPdf(); return; }
     try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (e) { /* doorgaan */ }
     buildReport();
     window.print();
@@ -1748,6 +1761,8 @@
     $$("[data-logo]").forEach(el => { el.innerHTML = logoSvg(el.dataset.logo); });
     $$("[data-n]").forEach(el => { el.innerHTML = nshapeSvg(); });
     captureBron();
+    if (window.CAMPAGNE_BEELD) $("#campagneBeeld").src = window.CAMPAGNE_BEELD;
+    else $("#campagneFiguur").classList.add("hidden");
     buildThemeNav();
     initStart();
     showView("start");

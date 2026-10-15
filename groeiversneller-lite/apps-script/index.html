@@ -82,7 +82,7 @@
       <span class="nshape" data-n style="width:56px;height:56px;right:12%;bottom:8%;--c:var(--midnight)"></span>
       <span class="nshape" data-n style="width:34px;height:34px;left:18%;top:9%;--c:var(--lavender)"></span>
       <div class="journey">
-        <p class="journey-campaign display display-xs">Meer tijd.<br>Minder zorgen.</p>
+        <figure class="campaign-visual" id="campagneFiguur"><img id="campagneBeeld" alt="Nmbrs-campagne: Meer tijd. Minder zorgen." width="960" height="540"></figure>
         <h2 class="journey-title sub-l">Zo werkt de scan</h2>
         <ol class="journey-list">
           <li class="journey-step">
@@ -319,22 +319,23 @@
       <div class="decision-section" id="decisionSection">
         <span class="nshape" data-n></span>
         <h3 class="decision-title display display-s">Wat wordt je eerste stap?</h3>
-        <p class="decision-sub">Geen verplichting &mdash; kies wat voor jou logisch voelt. We nemen het mee in je groeiverhaal.</p>
+        <p class="decision-sub">Kies wat voor jou logisch voelt. We nemen het mee in je groeiverhaal.</p>
+        <p class="decision-required" id="decisionRequired"><span class="material-symbols-outlined" aria-hidden="true">touch_app</span>Kies een van de drie opties om je groeiverhaal te downloaden</p>
         <div class="decision-cards" id="decisionCards">
           <button type="button" class="decision-card" data-decision="quickwin">
             <span class="material-symbols-outlined decision-card-icon" aria-hidden="true">bolt</span>
-            <span class="decision-card-title">Ik wil starten met de quick wins</span>
+            <span class="decision-card-title">Ik wil zelf starten met de quick wins</span>
             <span class="decision-card-desc">Snel starten, weinig gedoe, meteen effect.</span>
           </button>
-          <button type="button" class="decision-card" data-decision="voorstel">
-            <span class="material-symbols-outlined decision-card-icon" aria-hidden="true">assignment</span>
-            <span class="decision-card-title">Ik wil een voorstel op maat</span>
-            <span class="decision-card-desc">Een Nmbrs-specialist vertaalt deze aanbevelingen naar een concreet plan.</span>
+          <button type="button" class="decision-card" data-decision="kennismaken">
+            <span class="material-symbols-outlined decision-card-icon" aria-hidden="true">handshake</span>
+            <span class="decision-card-title">Ik wil kennismaken met Nmbrs Payroll</span>
+            <span class="decision-card-desc">Hoe lost Nmbrs mijn pijnpunten op?</span>
           </button>
           <button type="button" class="decision-card" data-decision="wachten">
             <span class="material-symbols-outlined decision-card-icon" aria-hidden="true">schedule</span>
             <span class="decision-card-title">Ik ori&euml;nteer me nog</span>
-            <span class="decision-card-desc">Helemaal goed &mdash; neem je groeiverhaal mee in je interne overleg.</span>
+            <span class="decision-card-desc">Benader me over een tijdje nog eens.</span>
           </button>
         </div>
         <div class="decision-followup hidden" id="decisionFollowup" aria-live="polite">
@@ -393,6 +394,8 @@
     <button type="button" class="btn btn-tertiary" id="pdfCloseBtn">Sluiten</button>
   </div>
 </div></div>
+
+<?!= include('beeld'); ?>
 
 <?!= include('data'); ?>
 

@@ -5,14 +5,15 @@
  * De PDF komt pas vrij nadat iemand zijn NAWET-gegevens heeft achtergelaten;
  * die gegevens komen in het tabblad "Leads" van de Google Sheet, zodat sales ze kan opvolgen.
  *
- * Dit project bestaat uit vijf bestanden (map groeiversneller-lite/apps-script in de repository):
+ * Dit project bestaat uit zes bestanden (map groeiversneller-lite/apps-script in de repository):
  *   1. Code.gs     - dit bestand: serveert de app en bewaart sessies en leads in een Google Sheet.
  *   2. index.html  - de pagina zelf; voegt de drie bestanden hieronder in.
  *   3. stijl.html  - de vormgeving.
- *   4. data.html   - de thema's en stellingen.
- *   5. app.html    - de werking.
- *   Maak in de Apps Script-editor via Bestanden + HTML vier HTML-bestanden met precies de
- *   namen index, stijl, data en app (zonder ".html") en plak in elk de inhoud van het
+ *   4. beeld.html  - het campagnebeeld.
+ *   5. data.html   - de thema's en stellingen.
+ *   6. app.html    - de werking.
+ *   Maak in de Apps Script-editor via Bestanden + HTML vijf HTML-bestanden met precies de
+ *   namen index, stijl, beeld, data en app (zonder ".html") en plak in elk de inhoud van het
  *   gelijknamige bestand. De app is bewust in stukken geknipt: één groot bestand wordt bij
  *   kopiëren en plakken makkelijk afgekapt.
  *
@@ -49,6 +50,7 @@ var HTML_BESTAND = 'index';
 var HTML_DELEN = {
   index: '</body>',
   stijl: 'einde:stijl',
+  beeld: 'einde:beeld',
   data: 'einde:data',
   app: 'einde:app'
 };

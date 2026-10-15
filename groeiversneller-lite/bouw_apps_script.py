@@ -2,10 +2,11 @@
 
 index.html is de bron (ook lokaal te openen om te testen). Omdat het één groot bestand
 is en dat bij kopiëren en plakken makkelijk wordt afgekapt, splitst dit script het in
-vier kleinere HTML-bestanden voor Google Apps Script:
+vijf kleinere HTML-bestanden voor Google Apps Script:
 
   index  - de pagina zelf (opmaak), voegt de andere drie in
   stijl  - de vormgeving (CSS)
+  beeld  - het campagnebeeld
   data   - de thema's en stellingen
   app    - de werking (JavaScript)
 
@@ -25,10 +26,11 @@ def blok(patroon):
     return m
 
 stijl = blok(r"<style>.*?</style>")
+beeld = blok(r"<script>\n// Campagnebeeld.*?</script>")
 data = blok(r"<script>\n// Groeiversneller Lite - datamodel.*?</script>")
 app = blok(r"<script>\n/\* Groei Versneller - app logica.*?</script>")
 
-delen = {"stijl": stijl.group(0), "data": data.group(0), "app": app.group(0)}
+delen = {"stijl": stijl.group(0), "beeld": beeld.group(0), "data": data.group(0), "app": app.group(0)}
 pagina = bron
 for naam, inhoud in delen.items():
     pagina = pagina.replace(inhoud, "<?!= include('%s'); ?>" % naam, 1)
@@ -38,6 +40,7 @@ assert "<?" not in bron, "index.html mag geen '<?' bevatten (Apps Script-templat
 # Apps Script laat HTML-commentaar en <?...?> weg bij het inlezen van een bestand.
 eindes = {
     "stijl": ("</style>", "/* einde:stijl */\n</style>"),
+    "beeld": ("</script>", "// einde:beeld\n</script>"),
     "data": ("</script>", "// einde:data\n</script>"),
     "app": ("</script>", "// einde:app\n</script>"),
 }

@@ -617,7 +617,11 @@ kbd {
 /* ---------------------------------------------------------------- */
 /* LITE / CAMPAGNE                                                  */
 /* ---------------------------------------------------------------- */
-.journey-campaign { color: var(--dark); margin: 0 0 22px; font-size: clamp(36px, 3.8vw, 56px); }
+.campaign-visual { margin: 0 0 26px; border-radius: var(--r-md); overflow: hidden; box-shadow: 0 18px 40px rgba(1, 1, 73, 0.28); aspect-ratio: 16 / 9; background: var(--midnight); }
+.campaign-visual img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.decision-section.needs-choice { box-shadow: 0 0 0 4px var(--coral); animation: choiceNudge .5s var(--ease) 2; }
+@keyframes choiceNudge { 50% { transform: translateY(-6px); } }
+.decision-required { position: relative; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--dark); background: var(--white); padding: 3px 12px; border-radius: 999px; margin: 0 0 16px; }
 .journey-title.sub-l { margin: 0 0 16px; }
 .journey-signoff { margin: 22px 0 0; font-weight: 700; font-size: 17px; color: var(--dark); }
 .prio-hint { margin-top: 18px; max-width: 680px; }

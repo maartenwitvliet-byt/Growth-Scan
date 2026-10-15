@@ -16,12 +16,12 @@ komen in een Google Sheet, zodat sales ze kan opvolgen.
    opent eerst het formulier (naam, organisatie, adres, postcode, plaats, e-mail, telefoon en toestemming).
 
 ## Installeren (Google Apps Script)
-Alles wat je plakt staat in de map **`apps-script/`**. De app is daar bewust in vier kleinere
+Alles wat je plakt staat in de map **`apps-script/`**. De app is daar bewust in vijf kleinere
 HTML-bestanden geknipt: één groot bestand wordt bij kopiëren en plakken makkelijk afgekapt.
 
 1. Maak op script.google.com een nieuw project.
 2. Plak `apps-script/Code.gs` in het bestand Code.gs.
-3. Maak via **Bestanden + > HTML** vier bestanden met precies de namen `index`, `stijl`, `data` en `app`.
+3. Maak via **Bestanden + > HTML** vijf bestanden met precies de namen `index`, `stijl`, `beeld`, `data` en `app`.
    Plak in elk de inhoud van het gelijknamige bestand uit `apps-script/`.
    Voer daarna `diagnose` uit: per bestand staat er in het logboek of het compleet is.
 4. Vul in `Code.gs` desgewenst `NOTIFICATIE_EMAIL` in. Dan krijgt sales een e-mail per nieuwe lead.
