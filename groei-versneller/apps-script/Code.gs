@@ -3,9 +3,13 @@
  *
  * Dit project bestaat uit twee bestanden:
  *   1. Code.gs     - dit bestand: serveert de app en bewaart sessies in een Google Sheet.
- *   2. index.html  - de complete app (groei-versneller/index.html uit de repository).
+ *   2. index.html  - de app, in de lichte versie voor Apps Script
+ *                    (groei-versneller/apps-script/index.html uit de repository).
  *                    Maak in de Apps Script-editor een HTML-bestand met de naam "index"
  *                    en plak daar de volledige inhoud van index.html in.
+ *
+ * Wit scherm of foutmelding? Kies bovenin de functie "diagnose" en klik op Uitvoeren;
+ * het Uitvoeringslogboek vertelt wat er mis is.
  *
  * Eenmalig instellen:
  *   - Kies bovenin de functie "setup" en klik op Uitvoeren. Geef toestemming.
@@ -48,6 +52,8 @@ var KOLOMMEN_PIJNPUNTEN = [
  * @return {HtmlOutput} De Groeiversneller.
  */
 function doGet() {
+  var probleem = controleerIndex_();
+  if (probleem) return foutpagina_(probleem);
   return HtmlService.createHtmlOutputFromFile(HTML_BESTAND)
     .setTitle('Groeiversneller | Nmbrs')
     // Nodig voor een goede weergave op tablet en telefoon.
@@ -56,6 +62,56 @@ function doGet() {
     // Haal dan de twee schuine strepen voor de volgende regel weg.
     // .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     ;
+}
+
+/**
+ * Uitvoeren vanuit de editor als de web-app niet goed laadt: controleert of
+ * index.html compleet is en of de Sheet bereikbaar is. Zie het Uitvoeringslogboek.
+ */
+function diagnose() {
+  var probleem = controleerIndex_();
+  Logger.log(probleem ? 'PROBLEEM met index.html: ' + probleem : 'index.html is compleet (' + indexLengte_() + ' tekens).');
+  try {
+    Logger.log('Sheet bereikbaar: ' + openSpreadsheet_().getUrl());
+  } catch (e) {
+    Logger.log('Sheet niet bereikbaar: ' + e.message + ' (voer "setup" uit).');
+  }
+  Logger.log('Tip: test de web-app in een incognitovenster als je met meerdere Google-accounts bent ingelogd.');
+}
+
+/** Geeft een omschrijving van het probleem terug, of '' als index.html in orde is. */
+function controleerIndex_() {
+  var inhoud;
+  try {
+    inhoud = HtmlService.createHtmlOutputFromFile(HTML_BESTAND).getContent();
+  } catch (e) {
+    return 'er is geen HTML-bestand met de naam "' + HTML_BESTAND + '" gevonden. ' +
+      'Maak via Bestanden + HTML een bestand met precies die naam en plak daar index.html in.';
+  }
+  if (inhoud.indexOf('groeiversneller:einde') === -1) {
+    return 'index.html lijkt niet volledig geplakt (' + inhoud.length + ' tekens gevonden). ' +
+      'Open index.html opnieuw, selecteer alles, kopieer, en plak het in het bestand "' + HTML_BESTAND + '". ' +
+      'Sla op en maak daarna een nieuwe versie van de implementatie.';
+  }
+  return '';
+}
+
+function indexLengte_() {
+  try { return HtmlService.createHtmlOutputFromFile(HTML_BESTAND).getContent().length; } catch (e) { return 0; }
+}
+
+function foutpagina_(melding) {
+  var html = '<div style="font-family:Arial,sans-serif;max-width:640px;margin:48px auto;padding:28px 32px;' +
+    'border-radius:16px;background:#E7E5FF;color:#00001D">' +
+    '<h2 style="margin:0 0 12px">De Groeiversneller kan niet starten</h2>' +
+    '<p style="line-height:1.5;margin:0">' + escapeHtml_(melding) + '</p></div>';
+  return HtmlService.createHtmlOutput(html).setTitle('Groeiversneller | Nmbrs');
+}
+
+function escapeHtml_(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
 }
 
 /**

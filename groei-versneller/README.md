@@ -52,7 +52,8 @@ stelling `titel`, `stelling`, `oplossing`, `waarde` en `functies`.
 1. Ga naar script.google.com en maak een nieuw project.
 2. Vervang de inhoud van `Code.gs` door `apps-script/Code.gs`.
 3. Kies Bestanden **+** → **HTML**, noem het `index` en plak de volledige inhoud
-   van `index.html` erin. Sla op.
+   van **`apps-script/index.html`** erin (de lichte versie, ca. 200 KB; de
+   PDF-bibliotheken worden pas geladen bij de eerste PDF-download). Sla op.
 4. Kies bovenin de functie **setup**, klik op **Uitvoeren** en geef toestemming.
    Er verschijnt een Google Sheet "Groeiversneller - Sessies" in je Drive; de
    link staat in het uitvoeringslogboek.
@@ -82,3 +83,14 @@ centrale opslag.
 In Apps Script draait de app in een afgeschermd kader van Google. De PDF
 verschijnt daarom in een venster met de knoppen "Download PDF" en "Open in
 nieuw tabblad".
+
+### Wit scherm of foutmelding?
+- Code.gs controleert bij het openen of `index` compleet is. Is dat niet zo,
+  dan toont de web-app een melding met wat er mis is, in plaats van een wit
+  scherm.
+- Kies in de editor de functie **diagnose** en klik op **Uitvoeren**. Het
+  uitvoeringslogboek meldt of index.html compleet is en of de Sheet
+  bereikbaar is.
+- Na elke wijziging: **Implementeren → Implementaties beheren → potlood →
+  Nieuwe versie**.
+- Ingelogd met meerdere Google-accounts? Test de link in een incognitovenster.

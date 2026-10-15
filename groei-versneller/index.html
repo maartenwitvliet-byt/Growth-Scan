@@ -2,6 +2,24 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
+<script>
+  // Toont een leesbare foutmelding als het laden misgaat, in plaats van een wit scherm.
+  (function () {
+    function toon(msg) {
+      try {
+        var d = document.getElementById("gv-laadfout") || document.createElement("div");
+        d.id = "gv-laadfout";
+        d.setAttribute("style", "position:fixed;left:16px;right:16px;bottom:16px;z-index:99999;background:#00001D;color:#fff;font:14px/1.4 Arial,sans-serif;padding:14px 18px;border-radius:12px");
+        d.textContent = "De Groeiversneller kon niet volledig laden: " + msg + " Ververs de pagina; blijft dit gebeuren, controleer dan of index.html volledig is geplakt.";
+        (document.body || document.documentElement).appendChild(d);
+      } catch (e) { /* niets meer te doen */ }
+    }
+    window.addEventListener("error", function (e) { if (!window.__GV_KLAAR && e && e.message) toon(e.message + "."); });
+    window.addEventListener("load", function () {
+      if (!window.__GV_KLAAR) toon("het script is niet gestart (bestand onvolledig?).");
+    });
+  })();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Groeiversneller | Nmbrs</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20297.9%20297.9%22%3E%3Crect%20width%3D%22297.9%22%20height%3D%22297.9%22%20rx%3D%2265.5%22%20fill%3D%22%236B5DFF%22/%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20transform%3D%22translate%2842.6%20106.4%29%22%20d%3D%22M%20137.53%2076.95%20L%20114.87%2053.26%20C%20112.99%2051.3%20111.29%2050.37%20109.24%2050.37%20C%20107.19%2050.37%20105.49%2051.3%20103.61%2053.26%20L%2075.49%2083.43%20C%2074.81%2084.11%2074.47%2084.28%2073.62%2084.28%20L%201.19%2084.28%20C%200.34%2084.28%200%2083.34%200.68%2082.74%20L%2074.13%2018.66%20C%2085.38%208.86%2090.92%206.23%20100.46%206.23%20C%20110.01%206.23%20115.72%209.63%20127.48%2022.41%20L%20152.02%2049%20C%20153.38%2050.45%20154.91%2051.22%20156.45%2051.22%20C%20157.98%2051.22%20159.34%2050.54%20160.88%2049%20L%20210.48%200.6%20C%20210.91%200.17%20211.25%200%20211.67%200%20C%20212.44%200%20212.78%200.85%20212.36%201.62%20L%20166.85%2075.59%20C%20162.77%2082.23%20158.5%2085.13%20152.54%2085.13%20C%20147.25%2085.13%20143.16%2082.83%20137.54%2076.95%20Z%20M%20137.53%2076.95%22/%3E%3C/svg%3E">
@@ -3651,6 +3669,32 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     return "Groeiverhaal - " + safe + ".pdf";
   }
 
+  // In de lichte (Apps Script-)versie zitten de PDF-bibliotheken niet ingebouwd;
+  // ze worden pas geladen bij de eerste PDF-download.
+  const PDF_LIBS = [
+    ["html2canvas", ["https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js", "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"]],
+    ["jspdf", ["https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js", "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"]],
+  ];
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = src; s.async = true; s.crossOrigin = "anonymous";
+      s.onload = resolve; s.onerror = () => reject(new Error("Kon " + src + " niet laden"));
+      document.head.appendChild(s);
+    });
+  }
+  async function loadPdfLibs() {
+    for (const [globalName, urls] of PDF_LIBS) {
+      if (window[globalName]) continue;
+      let lastErr;
+      for (const url of urls) {
+        try { await loadScript(url); if (window[globalName]) { lastErr = null; break; } }
+        catch (e) { lastErr = e; }
+      }
+      if (!window[globalName]) throw lastErr || new Error(globalName + " niet beschikbaar");
+    }
+  }
+
   function isAppsScript() {
     return typeof google !== "undefined" && !!google.script;
   }
@@ -3678,7 +3722,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
   async function downloadPdf() {
     const btn = $("#printBtn");
-    if (!window.html2canvas || !window.jspdf) { printReport(); return; }
+    if (!window.html2canvas || !window.jspdf) {
+      try { await loadPdfLibs(); } catch (e) { console.error(e); printReport(); return; }
+    }
     let keepOverlay = false;
     btn.disabled = true;
     resetPdfOverlay();
@@ -3737,6 +3783,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     initStart();
     showView("start");
     clientInput.focus();
+    window.__GV_KLAAR = true;
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
@@ -3744,5 +3791,6 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 })();
 </script>
 
+<!-- groeiversneller:einde -->
 </body>
 </html>
