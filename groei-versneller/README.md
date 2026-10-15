@@ -47,3 +47,15 @@ stelling `titel`, `stelling`, `oplossing`, `waarde` en `functies`.
 - Ctrl/Cmd+P print hetzelfde rapport via het printvenster (A4, marges "Geen",
   "Achtergrondafbeeldingen" aan). Lukt de directe download onverhoopt niet, dan
   opent de app automatisch dat printvenster.
+
+## Publiceren als Google Apps Script-webapp
+1. Ga naar script.google.com en maak een nieuw project.
+2. Vervang de inhoud van `Code.gs` door `apps-script/Code.gs`.
+3. Kies Bestanden **+** → **HTML**, noem het `index` en plak de volledige inhoud
+   van `index.html` erin.
+4. **Implementeren → Nieuwe implementatie → Web-app**. Kies bij "Uitvoeren als"
+   *Ik* en bij "Wie heeft toegang" de doelgroep, en klik op **Implementeren**.
+
+In Apps Script draait de app in een afgeschermd kader van Google. De PDF
+verschijnt daarom in een venster met de knoppen "Download PDF" en "Open in
+nieuw tabblad".

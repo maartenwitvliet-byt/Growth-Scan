@@ -591,7 +591,10 @@ kbd {
 .pdf-overlay { position: fixed; inset: 0; z-index: 900; background: rgba(0, 0, 29, 0.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
 .pdf-overlay-box { background: var(--white); border-radius: var(--r-lg); padding: 28px 32px; min-width: 280px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; box-shadow: var(--shadow-md); }
 .pdf-overlay-box b { font-family: var(--font-display); font-weight: 800; font-size: 26px; letter-spacing: -0.02em; }
-.pdf-overlay-box span:last-child { font-size: 14px; color: var(--text-soft); }
+#pdfProgress { font-size: 14px; color: var(--text-soft); }
+.pdf-ready { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin-top: 14px; width: 100%; }
+.pdf-ready .btn { justify-content: center; }
+.pdf-ready .btn-tertiary { align-self: center; }
 .pdf-spinner { width: 40px; height: 40px; border-radius: 999px; border: 4px solid var(--lavender); border-top-color: var(--blurple); animation: spin 0.9s linear infinite; margin-bottom: 6px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 #report.capturing { left: 0; z-index: 800; visibility: visible; }
@@ -1228,7 +1231,16 @@ kbd {
 
 <div id="toastContainer" aria-live="polite"></div>
 <div id="report" aria-hidden="true"></div>
-<div id="pdfOverlay" class="pdf-overlay hidden" role="status" aria-live="polite"><div class="pdf-overlay-box"><span class="pdf-spinner" aria-hidden="true"></span><b>PDF wordt gemaakt</b><span id="pdfProgress">Even geduld&hellip;</span></div></div>
+<div id="pdfOverlay" class="pdf-overlay hidden" role="status" aria-live="polite"><div class="pdf-overlay-box">
+  <span class="pdf-spinner" id="pdfSpinner" aria-hidden="true"></span>
+  <b id="pdfTitle">PDF wordt gemaakt</b>
+  <span id="pdfProgress">Even geduld&hellip;</span>
+  <div class="pdf-ready hidden" id="pdfReady">
+    <a class="btn btn-primary" id="pdfDownloadLink" href="#" download>Download PDF <span class="arrow" aria-hidden="true">&darr;</span></a>
+    <a class="btn btn-secondary" id="pdfOpenLink" href="#" target="_blank" rel="noopener">Open in nieuw tabblad</a>
+    <button type="button" class="btn btn-tertiary" id="pdfCloseBtn">Sluiten</button>
+  </div>
+</div></div>
 
 <script>
 // Groei Versneller - datamodel
@@ -3514,10 +3526,37 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     return "Groeiverhaal - " + safe + ".pdf";
   }
 
+  function isAppsScript() {
+    return typeof google !== "undefined" && !!google.script;
+  }
+
+  let pdfBlobUrl = null;
+  function resetPdfOverlay() {
+    $("#pdfSpinner").classList.remove("hidden");
+    $("#pdfTitle").textContent = "PDF wordt gemaakt";
+    $("#pdfReady").classList.add("hidden");
+    if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); pdfBlobUrl = null; }
+  }
+  function showPdfReady(blob) {
+    pdfBlobUrl = URL.createObjectURL(blob);
+    const dl = $("#pdfDownloadLink");
+    dl.href = pdfBlobUrl;
+    dl.setAttribute("download", pdfFileName());
+    $("#pdfOpenLink").href = pdfBlobUrl;
+    $("#pdfSpinner").classList.add("hidden");
+    $("#pdfTitle").textContent = "PDF is klaar";
+    pdfProgress.textContent = pdfFileName();
+    $("#pdfReady").classList.remove("hidden");
+    dl.focus();
+  }
+  $("#pdfCloseBtn").addEventListener("click", () => { pdfOverlay.classList.add("hidden"); resetPdfOverlay(); });
+
   async function downloadPdf() {
     const btn = $("#printBtn");
     if (!window.html2canvas || !window.jspdf) { printReport(); return; }
+    let keepOverlay = false;
     btn.disabled = true;
+    resetPdfOverlay();
     pdfOverlay.classList.remove("hidden");
     pdfProgress.textContent = "Rapport opbouwen\u2026";
     try {
@@ -3535,15 +3574,22 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         pdf.addImage(canvas.toDataURL("image/jpeg", 0.88), "JPEG", 0, 0, 210, 297, undefined, "FAST");
       }
       pdf.setProperties({ title: "Groeiverhaal - " + (state.client || ""), author: "Nmbrs", subject: "Groeiverhaal", creator: "Nmbrs Groeiversneller" });
-      pdf.save(pdfFileName());
-      showToast("PDF gedownload: " + pdfFileName());
+      if (isAppsScript()) {
+        // In een Google Apps Script-webapp draait de pagina in een afgeschermd kader;
+        // daar is een download via een aangeklikte link het betrouwbaarst.
+        showPdfReady(pdf.output("blob"));
+        keepOverlay = true;
+      } else {
+        pdf.save(pdfFileName());
+        showToast("PDF gedownload: " + pdfFileName());
+      }
     } catch (err) {
       console.error(err);
       showToast("PDF maken lukte niet; het printvenster wordt geopend. Kies daar 'Opslaan als PDF'.");
       printReport();
     } finally {
       reportEl.classList.remove("capturing");
-      pdfOverlay.classList.add("hidden");
+      if (!keepOverlay) pdfOverlay.classList.add("hidden");
       btn.disabled = false;
     }
   }
