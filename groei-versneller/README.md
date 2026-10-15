@@ -48,13 +48,36 @@ stelling `titel`, `stelling`, `oplossing`, `waarde` en `functies`.
   "Achtergrondafbeeldingen" aan). Lukt de directe download onverhoopt niet, dan
   opent de app automatisch dat printvenster.
 
-## Publiceren als Google Apps Script-webapp
+## Publiceren als Google Apps Script-webapp (met centrale opslag)
 1. Ga naar script.google.com en maak een nieuw project.
 2. Vervang de inhoud van `Code.gs` door `apps-script/Code.gs`.
 3. Kies Bestanden **+** → **HTML**, noem het `index` en plak de volledige inhoud
-   van `index.html` erin.
-4. **Implementeren → Nieuwe implementatie → Web-app**. Kies bij "Uitvoeren als"
+   van `index.html` erin. Sla op.
+4. Kies bovenin de functie **setup**, klik op **Uitvoeren** en geef toestemming.
+   Er verschijnt een Google Sheet "Groeiversneller - Sessies" in je Drive; de
+   link staat in het uitvoeringslogboek.
+5. **Implementeren → Nieuwe implementatie → Web-app**. Kies bij "Uitvoeren als"
    *Ik* en bij "Wie heeft toegang" de doelgroep, en klik op **Implementeren**.
+
+### Wat wordt er bewaard?
+In de Apps Script-webapp wordt elke sessie na iedere wijziging automatisch
+bewaard in de Sheet. Rechtsboven naast de klantnaam staat dan "Bewaard".
+
+- **Sessies**: één regel per klantsessie met klant, gestart / laatst
+  bijgewerkt, ingevuld door (bij Google Workspace binnen hetzelfde domein),
+  laatste stap, groeipotentieel, aantallen per kwadrant, business case, eerste
+  stap, startdatum, thema met de meeste pijn, titels van quick wins en grote
+  projecten, Nmbrs-functionaliteiten en een volledige back-up (JSON).
+- **Pijnpunten**: één regel per gevonden pijnpunt (sessie, klant, thema,
+  pijnpunt, kwadrant, functionaliteiten). Handig voor draaitabellen over
+  klanten heen.
+
+Een sessie wordt bijgewerkt, niet verdubbeld; ook na "Hervat" blijft het
+dezelfde regel. Lukt opslaan niet, dan toont de app "Niet bewaard" en probeert
+hij het bij de volgende wijziging opnieuw; lokaal blijft alles bewaard. Wil je
+een bestaande Sheet gebruiken, vul dan `SPREADSHEET_ID` in bovenaan Code.gs.
+Lokaal geopend (zonder Apps Script) werkt de app zoals voorheen, zonder
+centrale opslag.
 
 In Apps Script draait de app in een afgeschermd kader van Google. De PDF
 verschijnt daarom in een venster met de knoppen "Download PDF" en "Open in

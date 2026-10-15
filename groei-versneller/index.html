@@ -587,6 +587,14 @@ kbd {
 
 .story-footer { display: flex; gap: 10px; justify-content: flex-end; align-items: center; margin-top: 20px; flex-wrap: wrap; }
 
+/* Status centrale opslag (alleen zichtbaar in de Apps Script-webapp) */
+.cloud-status { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+.cloud-status .material-symbols-outlined { font-size: 19px; }
+.cloud-status.is-saved .material-symbols-outlined { color: var(--blurple); }
+.cloud-status.is-error { color: var(--dark); }
+.cloud-status.is-error .material-symbols-outlined { color: var(--coral-dark); }
+@media (max-width: 1100px) { .cloud-status span:last-child { display: none; } }
+
 /* PDF maken: overlay met voortgang */
 .pdf-overlay { position: fixed; inset: 0; z-index: 900; background: rgba(0, 0, 29, 0.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
 .pdf-overlay-box { background: var(--white); border-radius: var(--r-lg); padding: 28px 32px; min-width: 280px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; box-shadow: var(--shadow-md); }
@@ -913,6 +921,7 @@ kbd {
   <div class="topbar-left">
     <span class="logo" data-logo="secondary" role="img" aria-label="Nmbrs"></span>
     <span class="client-tag" title="Klant"><span class="material-symbols-outlined" aria-hidden="true">apartment</span><span id="clientLabel">-</span></span>
+    <span class="cloud-status hidden" id="cloudStatus" aria-live="polite"></span>
   </div>
   <nav class="steps" id="stepsNav" aria-label="Stappen">
     <button type="button" class="step" data-step="scan"><span class="step-num">1</span><span class="step-label">Resultaten</span></button>
@@ -2198,6 +2207,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     bizRate: 45,
     decision: null,               // "quickwin" | "voorstel" | "wachten" | null
     decisionDate: "",
+    sessionId: "",                // vaste ID per klantsessie (voor centrale opslag)
+    startedAt: "",
   };
 
   const QUADRANTS = {
@@ -2238,11 +2249,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   // ---------------------------------------------------------------
   const SESSION_KEY = "groeiversneller_sessie_v1";
 
-  function saveSession() {
-    if (!state.client) return;
-    try {
-      localStorage.setItem(SESSION_KEY, JSON.stringify({
-        client: state.client,
+  function sessionSnapshot() {
+    return {
+      sessionId: state.sessionId,
+      startedAt: state.startedAt,
+      client: state.client,
         themeIndex: state.themeIndex,
         visited: Array.from(state.visited),
         flagged: Array.from(state.flagged),
@@ -2251,11 +2262,116 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         bizRate: state.bizRate,
         decision: state.decision,
         decisionDate: state.decisionDate,
-        view: state.view,
-        savedAt: Date.now(),
-      }));
-    } catch (e) { /* opslag niet beschikbaar: app werkt gewoon door */ }
+      view: state.view,
+      savedAt: Date.now(),
+    };
   }
+
+  function saveSession() {
+    if (!state.client) return;
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(sessionSnapshot()));
+    } catch (e) { /* opslag niet beschikbaar: app werkt gewoon door */ }
+    scheduleCloudSave();
+  }
+
+  function newSessionId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return "s-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+  }
+
+  // ---------------------------------------------------------------
+  // CENTRALE OPSLAG (alleen als de app als Google Apps Script-webapp draait):
+  // na elke wijziging wordt de sessie bewaard in de Google Sheet via
+  // bewaarSessie() in Code.gs. Lokaal geopend werkt de app zoals altijd.
+  // ---------------------------------------------------------------
+  const CLOUD_DELAY_MS = 1500;
+  let cloudTimer = null;
+  let cloudBusy = false;
+  let cloudAgain = false;
+  let cloudPending = false;
+
+  function setCloudStatus(kind, detail) {
+    const el = $("#cloudStatus");
+    if (!el) return;
+    const map = {
+      pending: ["cloud_upload", "Opslaan\u2026"],
+      saved: ["cloud_done", "Bewaard"],
+      error: ["cloud_off", "Niet bewaard"],
+    };
+    const m = map[kind];
+    el.classList.remove("hidden", "is-pending", "is-saved", "is-error");
+    el.classList.add("is-" + kind);
+    el.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">' + m[0] + '</span><span>' + m[1] + '</span>';
+    el.title = kind === "error"
+      ? "De sessie kon niet centraal worden bewaard" + (detail ? ": " + detail : "") + ". We proberen het bij de volgende wijziging opnieuw; lokaal is alles wel bewaard."
+      : kind === "saved" ? "Deze sessie is bewaard in de centrale Google Sheet." : "Bezig met bewaren\u2026";
+  }
+
+  function scheduleCloudSave() {
+    if (!isAppsScript() || !state.client || !state.sessionId) return;
+    cloudPending = true;
+    setCloudStatus("pending");
+    clearTimeout(cloudTimer);
+    cloudTimer = setTimeout(cloudSave, CLOUD_DELAY_MS);
+  }
+
+  function cloudSave() {
+    if (cloudBusy) { cloudAgain = true; return; }
+    let payload;
+    try { payload = cloudPayload(); } catch (e) { setCloudStatus("error", e.message); return; }
+    cloudBusy = true;
+    const done = () => {
+      cloudBusy = false;
+      if (cloudAgain) { cloudAgain = false; cloudSave(); }
+    };
+    google.script.run
+      .withSuccessHandler(() => { cloudPending = cloudAgain; if (!cloudAgain) setCloudStatus("saved"); done(); })
+      .withFailureHandler(err => { setCloudStatus("error", err && err.message ? err.message : String(err)); done(); })
+      .bewaarSessie(payload);
+  }
+
+  function cloudPayload() {
+    const d = computeStoryData();
+    const g = d.groups;
+    const STEP_LABELS = { scan: "Resultaten", priority: "Prioriteer", businesscase: "Business case", story: "Groeiverhaal" };
+    const items = Array.from(state.flagged).map(k => {
+      const f = findItem(k);
+      if (!f) return null;
+      const p = state.placements[k];
+      return { thema: f.theme.naam, titel: f.item.titel, kwadrant: p ? QUADRANTS[p.quadrant].label : "Nog niet geprioriteerd", functies: f.item.functies || [] };
+    }).filter(Boolean);
+    return {
+      sessieId: state.sessionId,
+      gestart: state.startedAt,
+      klant: state.client,
+      stap: STEP_LABELS[state.view] || state.view,
+      score: d.score,
+      pijnpunten: d.totalFlagged,
+      geprioriteerd: d.totalPlaced,
+      quickWins: g.quickwin.length,
+      groteProjecten: g.project.length,
+      niceToHave: g.nice.length,
+      heroverwegen: g.reconsider.length,
+      businessCase: state.bizHours == null ? {} : {
+        urenPerWeek: state.bizHours, uurtarief: state.bizRate,
+        perJaar: Math.round(d.bizAnnual), perMaand: Math.round(d.bizMonthly),
+      },
+      eersteStap: state.decision ? DECISION_LABELS[state.decision] : "",
+      startdatum: state.decisionDate || "",
+      topThema: d.topTheme ? d.topTheme.naam : "",
+      quickWinTitels: g.quickwin.map(x => x.item.titel),
+      projectTitels: g.project.map(x => x.item.titel),
+      functionaliteiten: d.sortedFuncties.map(([naam, n]) => naam + " (" + n + ")"),
+      items,
+      backup: sessionSnapshot(),
+    };
+  }
+
+  // Waarschuwen als iemand de pagina sluit terwijl er nog iets bewaard moet worden.
+  window.addEventListener("beforeunload", (e) => {
+    if (isAppsScript() && (cloudPending || cloudBusy)) { e.preventDefault(); e.returnValue = ""; }
+  });
 
   function loadSession() {
     try {
@@ -2372,6 +2488,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     startBtn.addEventListener("click", () => {
       resetState();
       state.client = (clientInput.value || "").trim() || "deze organisatie";
+      state.sessionId = newSessionId();
+      state.startedAt = new Date().toISOString();
       clientLabel.textContent = state.client;
       buildScanTheme(0);
       showView("scan");
@@ -2391,6 +2509,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   function restoreSession(s) {
     resetState();
     state.client = s.client;
+    state.sessionId = s.sessionId || newSessionId();
+    state.startedAt = s.startedAt || new Date(s.savedAt || Date.now()).toISOString();
     state.themeIndex = Math.min(Math.max(0, s.themeIndex || 0), THEMES.length - 1);
     (s.visited || []).forEach(i => state.visited.add(i));
     // Alleen keys die nog in de data bestaan (data kan tussentijds wijzigen).
@@ -2413,6 +2533,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   }
 
   function resetState() {
+    state.sessionId = "";
+    state.startedAt = "";
+    clearTimeout(cloudTimer);
+    cloudPending = false;
+    const cs = $("#cloudStatus"); if (cs) cs.classList.add("hidden");
     state.flagged.clear();
     state.visited.clear();
     state.placements = {};
