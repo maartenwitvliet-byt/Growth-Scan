@@ -42,9 +42,12 @@
 /** Naam van het HTML-hoofdbestand in dit project (zonder ".html"). */
 var HTML_BESTAND = 'index';
 
-/** De HTML-bestanden van de app, met de tekst waarop elk bestand moet eindigen. */
+/**
+ * De HTML-bestanden van de app, met een tekst die aan het eind van elk bestand staat.
+ * Let op: geen HTML-commentaar gebruiken, want dat laat Apps Script weg bij het inlezen.
+ */
 var HTML_DELEN = {
-  index: 'groeiversneller:einde',
+  index: '</body>',
   stijl: 'einde:stijl',
   data: 'einde:data',
   app: 'einde:app'

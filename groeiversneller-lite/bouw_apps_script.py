@@ -34,9 +34,18 @@ for naam, inhoud in delen.items():
     pagina = pagina.replace(inhoud, "<?!= include('%s'); ?>" % naam, 1)
 assert "<?" not in bron, "index.html mag geen '<?' bevatten (Apps Script-templates)"
 
+# Eindmarkeringen staan binnen de CSS/JavaScript, niet in een HTML-commentaar:
+# Apps Script laat HTML-commentaar en <?...?> weg bij het inlezen van een bestand.
+eindes = {
+    "stijl": ("</style>", "/* einde:stijl */\n</style>"),
+    "data": ("</script>", "// einde:data\n</script>"),
+    "app": ("</script>", "// einde:app\n</script>"),
+}
 (uit / "index.html").write_text(pagina, encoding="utf8")
 for naam, inhoud in delen.items():
-    (uit / (naam + ".html")).write_text(inhoud + "\n<!-- einde:" + naam + " -->\n", encoding="utf8")
+    oud, nieuw = eindes[naam]
+    assert inhoud.endswith(oud)
+    (uit / (naam + ".html")).write_text(inhoud[: -len(oud)] + nieuw + "\n", encoding="utf8")
 
 for f in sorted(uit.glob("*.html")):
     print("%-12s %7d tekens" % (f.name, len(f.read_text(encoding="utf8"))))
