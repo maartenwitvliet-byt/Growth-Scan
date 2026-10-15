@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<script>
+  // Toont een leesbare foutmelding als het laden misgaat, in plaats van een wit scherm.
+  (function () {
+    function toon(msg) {
+      try {
+        var d = document.getElementById("gv-laadfout") || document.createElement("div");
+        d.id = "gv-laadfout";
+        d.setAttribute("style", "position:fixed;left:16px;right:16px;bottom:16px;z-index:99999;background:#00001D;color:#fff;font:14px/1.4 Arial,sans-serif;padding:14px 18px;border-radius:12px");
+        d.textContent = "De Groeiversneller kon niet volledig laden: " + msg + " Ververs de pagina; blijft dit gebeuren, controleer dan of index.html volledig is geplakt.";
+        (document.body || document.documentElement).appendChild(d);
+      } catch (e) { /* niets meer te doen */ }
+    }
+    window.addEventListener("error", function (e) { if (!window.__GV_KLAAR && e && e.message) toon(e.message + "."); });
+    window.addEventListener("load", function () {
+      if (!window.__GV_KLAAR) toon("het script is niet gestart (bestand onvolledig?).");
+    });
+  })();
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Groeiversneller | Nmbrs</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20297.9%20297.9%22%3E%3Crect%20width%3D%22297.9%22%20height%3D%22297.9%22%20rx%3D%2265.5%22%20fill%3D%22%236B5DFF%22/%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20transform%3D%22translate%2842.6%20106.4%29%22%20d%3D%22M%20137.53%2076.95%20L%20114.87%2053.26%20C%20112.99%2051.3%20111.29%2050.37%20109.24%2050.37%20C%20107.19%2050.37%20105.49%2051.3%20103.61%2053.26%20L%2075.49%2083.43%20C%2074.81%2084.11%2074.47%2084.28%2073.62%2084.28%20L%201.19%2084.28%20C%200.34%2084.28%200%2083.34%200.68%2082.74%20L%2074.13%2018.66%20C%2085.38%208.86%2090.92%206.23%20100.46%206.23%20C%20110.01%206.23%20115.72%209.63%20127.48%2022.41%20L%20152.02%2049%20C%20153.38%2050.45%20154.91%2051.22%20156.45%2051.22%20C%20157.98%2051.22%20159.34%2050.54%20160.88%2049%20L%20210.48%200.6%20C%20210.91%200.17%20211.25%200%20211.67%200%20C%20212.44%200%20212.78%200.85%20212.36%201.62%20L%20166.85%2075.59%20C%20162.77%2082.23%20158.5%2085.13%20152.54%2085.13%20C%20147.25%2085.13%20143.16%2082.83%20137.54%2076.95%20Z%20M%20137.53%2076.95%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@800&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..24,400,0..1,0&display=block" rel="stylesheet">
+<?!= include('stijl'); ?>
+</head>
+<body>
+
+<header id="topbar" class="hidden">
+  <div class="topbar-left">
+    <span class="logo" data-logo="secondary" role="img" aria-label="Nmbrs"></span>
+    <span class="client-tag" title="Organisatie"><span class="material-symbols-outlined" aria-hidden="true">apartment</span><span id="clientLabel">-</span></span>
+    <span class="cloud-status hidden" id="cloudStatus" aria-live="polite"></span>
+  </div>
+  <nav class="steps" id="stepsNav" aria-label="Stappen">
+    <button type="button" class="step" data-step="scan"><span class="step-num">1</span><span class="step-label">Scan</span></button>
+    <button type="button" class="step" data-step="priority"><span class="step-num">2</span><span class="step-label">Prioriteer</span></button>
+    <button type="button" class="step" data-step="businesscase"><span class="step-num">3</span><span class="step-label">Business case</span></button>
+    <button type="button" class="step" data-step="story"><span class="step-num">4</span><span class="step-label">Groeiverhaal</span></button>
+  </nav>
+  <div class="mini-gauge" title="Groeipotentieel: hoe meer pijnpunten als quick win of groot project geprioriteerd zijn, hoe hoger">
+    <svg viewBox="0 0 44 44" aria-hidden="true">
+      <circle class="mini-gauge-bg" cx="22" cy="22" r="18"></circle>
+      <circle class="mini-gauge-arc" id="miniGaugeArc" cx="22" cy="22" r="18"></circle>
+    </svg>
+    <span class="mini-gauge-label">Groeipotentieel<br><span class="mini-gauge-value" id="miniGaugeValue">0</span></span>
+  </div>
+</header>
+
+<main id="views">
+
+  <!-- START -->
+  <section id="view-start" class="view active">
+    <div class="start-left">
+      <span class="logo start-logo" data-logo="primary" role="img" aria-label="Nmbrs"></span>
+      <p class="eyebrow">De Groeiversneller &middot; Grow, grow, go!</p>
+      <h1 class="start-title display display-l">Meer groei. Minder <span class="u-line">gedoe.</span></h1>
+      <p class="start-sub body-l">We helpen je graag groeien. Kijk in een paar minuten op welke onderdelen van je medewerkersreis je groei kunt organiseren &mdash; van contract tot ontwikkeling.</p>
+
+      <label class="field-label" for="clientInput">Voor welke organisatie vul je de scan in?</label>
+      <div class="start-form">
+        <input type="text" id="clientInput" class="input" placeholder="Naam van je organisatie" autocomplete="organization" maxlength="120">
+        <button type="button" id="startBtn" class="btn btn-primary btn-lg">Start de scan <span class="arrow" aria-hidden="true">&rarr;</span></button>
+      </div>
+      <p class="start-meta"><span class="material-symbols-outlined" aria-hidden="true">timer</span><span><span id="startMetaThemes">5</span> thema's &middot; <span id="startMetaItems">26</span> stellingen &middot; klaar in &plusmn; 5 minuten. Aan het eind download je jouw persoonlijke groeiverhaal.</span></p>
+
+      <div class="resume-card hidden" id="resumeCard">
+        <span class="material-symbols-outlined" aria-hidden="true">history</span>
+        <span class="resume-text"><strong id="resumeClient">-</strong><small id="resumeMeta">-</small></span>
+        <button type="button" class="btn btn-secondary" id="resumeBtn">Verder <span class="arrow" aria-hidden="true">&rarr;</span></button>
+      </div>
+    </div>
+
+    <div class="start-right">
+      <span class="nshape" data-n style="width:260px;height:260px;right:-70px;top:-60px;--c:var(--midnight)"></span>
+      <span class="nshape" data-n style="width:120px;height:120px;left:-30px;bottom:12%;--c:var(--lavender)"></span>
+      <span class="nshape" data-n style="width:56px;height:56px;right:12%;bottom:8%;--c:var(--midnight)"></span>
+      <span class="nshape" data-n style="width:34px;height:34px;left:18%;top:9%;--c:var(--lavender)"></span>
+      <div class="journey">
+        <p class="journey-campaign display display-xs">Meer tijd.<br>Minder zorgen.</p>
+        <h2 class="journey-title sub-l">Zo werkt de scan</h2>
+        <ol class="journey-list">
+          <li class="journey-step">
+            <span class="journey-num">01</span>
+            <span><span class="journey-step-title">Meer inzicht. Minder giswerk.</span>
+            <span class="journey-step-desc">Tik aan wat binnen jouw bedrijf nog niet goed is ingeregeld, verdeeld over <span id="totalThemesCount">5</span> thema's en <span id="totalItemsCount">26</span> stellingen.</span></span>
+          </li>
+          <li class="journey-step">
+            <span class="journey-num">02</span>
+            <span><span class="journey-step-title">Meer focus. Minder ruis.</span>
+            <span class="journey-step-desc">Zet je pijnpunten op de matrix van impact en inspanning.</span></span>
+          </li>
+          <li class="journey-step">
+            <span class="journey-num">03</span>
+            <span><span class="journey-step-title">Meer tijd. Minder kosten.</span>
+            <span class="journey-step-desc">Hoeveel tijd ben je nu kwijt aan deze zaken? En wat kost dat per jaar?</span></span>
+          </li>
+          <li class="journey-step">
+            <span class="journey-num">04</span>
+            <span><span class="journey-step-title">Meer groei. Minder zorgen.</span>
+            <span class="journey-step-desc">Jouw groeiverhaal met roadmap en quick wins, als PDF om te bewaren en te delen.</span></span>
+          </li>
+        </ol>
+        <p class="journey-signoff">Meer bull. Minder shit.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCAN -->
+  <section id="view-scan" class="view">
+    <div class="wrap">
+      <div class="scan-layout">
+        <aside class="theme-nav" aria-label="Thema's">
+          <div class="theme-nav-head">
+            <span class="theme-nav-title">Thema's</span>
+            <span class="theme-nav-total" id="themeNavTotal">-</span>
+          </div>
+          <ul class="theme-nav-list" id="themeNavList"></ul>
+        </aside>
+
+        <div class="scan-main">
+          <p class="eyebrow" id="scanThemeCounter">-</p>
+          <div class="scan-head">
+            <h2 id="scanThemeTitle" class="display display-s">-</h2>
+            <span class="pain-counter" aria-live="polite"><span class="pain-counter-num" id="flaggedCount">0</span>pijnpunten gevonden</span>
+          </div>
+          <div class="scan-progress" aria-hidden="true"><span class="scan-progress-fill" id="scanProgressFill"></span></div>
+
+          <p class="scan-hint"><span class="material-symbols-outlined" aria-hidden="true">touch_app</span><span>We willen graag van jou weten welke onderdelen binnen jouw bedrijf nog <strong>niet goed zijn ingeregeld</strong>. Klopt een stelling vandaag (nog) niet? Tik hem aan &mdash; dan is het een pijnpunt en nemen we hem mee naar de matrix. Klopt hij wel? Dan sla je hem gewoon over.</span></p>
+
+          <div class="scan-list" id="scanItemList"></div>
+
+          <div class="nav-row">
+            <button type="button" class="btn btn-secondary" id="scanPrevBtn"><span class="arrow" aria-hidden="true">&larr;</span> Vorig thema</button>
+            <span class="kbd-hint"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> wisselen van thema</span>
+            <button type="button" class="btn btn-primary" id="scanNextBtn">Volgend thema <span class="arrow" aria-hidden="true">&rarr;</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRIORITEER -->
+  <section id="view-priority" class="view">
+    <div class="wrap">
+      <div class="page-head">
+        <p class="eyebrow">Stap 2 &middot; Prioriteer</p>
+        <h2 class="display display-m">Meer focus. Minder ruis.</h2>
+        <p class="page-sub">Zet elk pijnpunt op de matrix: wat levert het oplossen jou op, en hoeveel moeite kost het? Hoe hoger de impact en hoe lager de inspanning, hoe sneller je de groei merkt.</p>
+        <p class="scan-hint prio-hint"><span class="material-symbols-outlined" aria-hidden="true">touch_app</span><span>Sleep een kaartje naar een vak, of <strong>tik het aan</strong> en kies waar het hoort. Twijfel je? Volg je gevoel &mdash; je kunt het later nog verplaatsen.</span></p>
+      </div>
+
+      <div class="prio-layout">
+        <div class="matrix-outer">
+          <div class="matrix" id="priorityMatrix">
+            <div class="matrix-quadrant q-quickwin"><span class="q-head"><span class="q-title">Quick wins</span><span class="q-sub">Hoge impact, lage inspanning</span></span></div>
+            <div class="matrix-quadrant q-project"><span class="q-head"><span class="q-title">Grote projecten</span><span class="q-sub">Hoge impact, hoge inspanning</span></span></div>
+            <div class="matrix-quadrant q-nice"><span class="q-head"><span class="q-title">Nice to have</span><span class="q-sub">Lage impact, lage inspanning</span></span></div>
+            <div class="matrix-quadrant q-reconsider"><span class="q-head"><span class="q-title">Heroverwegen</span><span class="q-sub">Lage impact, hoge inspanning</span></span></div>
+            <div class="matrix-divider-v"></div>
+            <div class="matrix-divider-h"></div>
+            <span class="axis-x-title">Inspanning om te realiseren &rarr;</span>
+            <span class="axis-y-title">Impact op jouw organisatie &rarr;</span>
+          </div>
+        </div>
+
+        <div class="tray-wrap">
+          <p class="tray-title">Nog te plaatsen <span class="tray-count" id="trayCount">0</span></p>
+          <div class="tray" id="priorityTray"></div>
+          <p id="priorityEmptyMsg" class="hidden">Je hebt nog geen pijnpunten aangetikt. Ga terug naar de scan en tik aan wat nog niet goed is ingeregeld, of ga direct door.</p>
+        </div>
+      </div>
+
+      <div class="prio-footer">
+        <span id="priorityRemaining">-</span>
+        <button type="button" class="btn btn-primary" id="priorityToBizCaseBtn">Naar je business case <span class="arrow" aria-hidden="true">&rarr;</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- BUSINESS CASE -->
+  <section id="view-businesscase" class="view">
+    <div class="wrap wrap-narrow">
+      <div class="page-head">
+        <p class="eyebrow">Stap 3 &middot; Business case</p>
+        <h2 class="display display-m">Hoeveel tijd ben je nu kwijt aan deze zaken?</h2>
+        <p class="page-sub">Meer tijd begint bij weten waar je tijd nu naartoe gaat. Geen benchmark, alleen jouw eigen inschatting &mdash; een grove schatting is prima.</p>
+      </div>
+
+      <div class="card">
+        <div class="biz-field">
+          <label for="bizHours">Hoeveel uur per week gaat er binnen jouw organisatie ongeveer op aan de pijnpunten die je hebt aangetikt?</label>
+          <div class="biz-input-row">
+            <input type="number" id="bizHours" class="input" min="0" step="0.5" placeholder="bijv. 6" inputmode="decimal">
+            <span class="biz-unit">uur per week</span>
+          </div>
+        </div>
+        <div class="biz-field">
+          <label for="bizRate">Wat is een gemiddeld bruto uurtarief van de mensen die dit werk doen?</label>
+          <div class="biz-input-row">
+            <span class="biz-unit-prefix">&euro;</span>
+            <input type="number" id="bizRate" class="input" min="0" step="1" value="45" inputmode="decimal">
+            <span class="biz-unit">per uur</span>
+          </div>
+        </div>
+
+        <div class="biz-result" id="bizResult" aria-live="polite">
+          <span class="nshape" data-n></span>
+          <span class="hl-label">Wat dit je nu kost</span>
+          <span class="biz-result-value" id="bizAnnualValue">&euro;&nbsp;0</span>
+          <span class="biz-result-sub">per jaar &middot; ongeveer <strong id="bizMonthlyValue">&euro;&nbsp;0</strong> per maand</span>
+          <span class="biz-result-sub biz-result-hours" id="bizHoursYear"></span>
+        </div>
+        <p class="biz-note">Een inschatting op basis van jouw eigen cijfers, geen Nmbrs-benchmark. Niet verplicht &mdash; leeg laten mag ook, dan blijft dit onderdeel uit je groeiverhaal.</p>
+      </div>
+
+      <div class="prio-footer">
+        <button type="button" class="btn btn-tertiary" id="bizBackBtn">Terug naar prioriteren</button>
+        <button type="button" class="btn btn-primary" id="bizToStoryBtn">Bekijk je groeiverhaal <span class="arrow" aria-hidden="true">&rarr;</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- GROEIVERHAAL -->
+  <section id="view-story" class="view">
+    <div class="wrap">
+
+      <div id="printArea">
+        <div class="story-hero">
+          <span class="nshape ns-1" data-n></span>
+          <span class="nshape ns-2" data-n></span>
+          <div class="hero-gauge">
+            <svg viewBox="0 0 190 190" aria-hidden="true">
+              <circle class="hero-gauge-bg" cx="95" cy="95" r="80"></circle>
+              <circle class="hero-gauge-arc" id="heroGaugeArc" cx="95" cy="95" r="80"></circle>
+            </svg>
+            <div class="hero-gauge-center">
+              <span class="hero-gauge-value" id="heroGaugeValue">0</span>
+              <span class="hero-gauge-suffix">Groeipotentieel</span>
+            </div>
+          </div>
+          <div class="story-hero-text">
+            <p class="eyebrow">Jouw groeiverhaal &middot; Grow, grow, go!</p>
+            <h2 class="story-hero-title display display-m">Voor <span id="storyClientName">-</span></h2>
+            <p id="storyNarrative">-</p>
+          </div>
+        </div>
+
+        <div class="kpi-row" id="kpiRow">
+          <div class="kpi"><span class="kpi-value" id="kpiPain">0</span><span class="kpi-label">pijnpunten gevonden</span></div>
+          <div class="kpi kpi-accent"><span class="kpi-value" id="kpiQuickwin">0</span><span class="kpi-label">quick wins</span></div>
+          <div class="kpi"><span class="kpi-value" id="kpiProject">0</span><span class="kpi-label">grote projecten</span></div>
+          <div class="kpi"><span class="kpi-value" id="kpiFuncties">0</span><span class="kpi-label">Nmbrs-functionaliteiten die helpen</span></div>
+        </div>
+
+
+        <div class="bizcase hidden" id="bizCaseSection">
+          <span class="nshape" data-n></span>
+          <div class="bizcase-inner">
+            <div class="bizcase-main">
+              <span class="hl-label">De business case</span>
+              <span class="bizcase-value" id="bizCaseAnnual">&euro;&nbsp;0</span>
+              <span class="bizcase-sub">geschatte kosten per jaar, op basis van jouw eigen inschatting<span id="bizCaseHours"></span></span>
+            </div>
+            <div class="bizcase-wait">
+              <span class="bizcase-label-plain">Kosten van wachten</span>
+              <span class="bizcase-wait-value" id="bizCaseMonthly">&euro;&nbsp;0</span>
+              <span class="bizcase-sub">per maand dat dit blijft liggen</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section" id="roadmapSection">
+          <div class="section-head">
+            <h3 class="display display-xs">De roadmap</h3>
+            <p class="section-sub">Niet alles hoeft in &eacute;&eacute;n keer. Dit is een haalbare volgorde, met de snelste groei voorop.</p>
+          </div>
+          <div class="roadmap-track" id="roadmapTrack"></div>
+        </div>
+
+        <div class="section section-functies panel">
+          <div class="section-head">
+            <h3 class="display display-xs">Nmbrs-functionaliteiten die dit oplossen</h3>
+            <p class="section-sub">Gerangschikt op hoeveel van de gevonden pijnpunten elke functionaliteit direct raakt.</p>
+          </div>
+          <div id="functieOverzicht" class="functie-grid"></div>
+        </div>
+
+        <div class="story-grid">
+          <div class="story-col-main">
+            <div class="section">
+              <div class="section-head"><h3 class="display display-xs">Quick wins <span class="tag tag-quickwin">direct starten</span></h3></div>
+              <div id="quickWinList"></div>
+            </div>
+            <div class="section">
+              <div class="section-head"><h3 class="display display-xs">Grote projecten <span class="tag tag-project">op de roadmap</span></h3></div>
+              <div id="projectList"></div>
+            </div>
+          </div>
+          <div class="story-col-side">
+            <div class="section panel">
+              <div class="section-head"><h3 class="sub-l">Verdeling</h3></div>
+              <div id="quadrantBars"></div>
+              <p id="niceReconsiderCount" class="story-empty">-</p>
+            </div>
+            <div class="section panel">
+              <div class="section-head"><h3 class="sub-l">Per thema</h3><p class="section-sub">Hoe donkerder, hoe meer pijnpunten.</p></div>
+              <div class="heatmap" id="themeHeatmap"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="decision-section" id="decisionSection">
+        <span class="nshape" data-n></span>
+        <h3 class="decision-title display display-s">Wat wordt je eerste stap?</h3>
+        <p class="decision-sub">Geen verplichting &mdash; kies wat voor jou logisch voelt. We nemen het mee in je groeiverhaal.</p>
+        <div class="decision-cards" id="decisionCards">
+          <button type="button" class="decision-card" data-decision="quickwin">
+            <span class="material-symbols-outlined decision-card-icon" aria-hidden="true">bolt</span>
+            <span class="decision-card-title">Ik wil starten met de quick wins</span>
+            <span class="decision-card-desc">Snel starten, weinig gedoe, meteen effect.</span>
+          </button>
+          <button type="button" class="decision-card" data-decision="voorstel">
+            <span class="material-symbols-outlined decision-card-icon" aria-hidden="true">assignment</span>
+            <span class="decision-card-title">Ik wil een voorstel op maat</span>
+            <span class="decision-card-desc">Een Nmbrs-specialist vertaalt deze aanbevelingen naar een concreet plan.</span>
+          </button>
+          <button type="button" class="decision-card" data-decision="wachten">
+            <span class="material-symbols-outlined decision-card-icon" aria-hidden="true">schedule</span>
+            <span class="decision-card-title">Ik ori&euml;nteer me nog</span>
+            <span class="decision-card-desc">Helemaal goed &mdash; neem je groeiverhaal mee in je interne overleg.</span>
+          </button>
+        </div>
+        <div class="decision-followup hidden" id="decisionFollowup" aria-live="polite">
+          <p id="decisionFollowupText"></p>
+          <div class="decision-date-row hidden" id="decisionDateRow">
+            <label for="decisionDate">Gewenste startdatum</label>
+            <input type="date" id="decisionDate" class="input">
+          </div>
+        </div>
+      </div>
+
+      <div class="story-footer">
+        <button type="button" class="btn btn-tertiary" id="restartBtn">Opnieuw beginnen</button>
+        <button type="button" class="btn btn-primary btn-lg" id="printBtn"><span class="material-symbols-outlined" aria-hidden="true">download</span> Download je groeiverhaal (PDF)</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div id="leadOverlay" class="lead-overlay hidden">
+  <form class="lead-box" id="leadForm" novalidate role="dialog" aria-modal="true" aria-labelledby="leadTitle">
+    <button type="button" class="lead-close" id="leadCloseBtn" aria-label="Sluiten"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+    <p class="eyebrow">Bijna klaar &middot; Grow, grow, go!</p>
+    <h2 class="lead-title display display-xs" id="leadTitle">Je groeiverhaal staat klaar</h2>
+    <p class="lead-intro">Laat je gegevens achter en download direct je persoonlijke groeiverhaal als PDF. Wil je verder? Dan weet een Nmbrs-specialist meteen waar jouw groeikansen liggen.</p>
+    <div class="lead-grid">
+      <div class="lead-field"><label for="leadNaam">Naam *</label><input class="input" id="leadNaam" name="naam" autocomplete="name" maxlength="120" required></div>
+      <div class="lead-field"><label for="leadBedrijf">Organisatie *</label><input class="input" id="leadBedrijf" name="bedrijf" autocomplete="organization" maxlength="120" required></div>
+      <div class="lead-field full"><label for="leadAdres">Adres *</label><input class="input" id="leadAdres" name="adres" autocomplete="street-address" maxlength="160" placeholder="Straat en huisnummer" required></div>
+      <div class="lead-field full lead-row-pc">
+        <div><label for="leadPostcode">Postcode *</label><input class="input" id="leadPostcode" name="postcode" autocomplete="postal-code" maxlength="10" required></div>
+        <div><label for="leadPlaats">Plaats *</label><input class="input" id="leadPlaats" name="plaats" autocomplete="address-level2" maxlength="80" required></div>
+      </div>
+      <div class="lead-field"><label for="leadEmail">E-mailadres *</label><input class="input" id="leadEmail" name="email" type="email" autocomplete="email" maxlength="160" required></div>
+      <div class="lead-field"><label for="leadTelefoon">Telefoonnummer *</label><input class="input" id="leadTelefoon" name="telefoon" type="tel" autocomplete="tel" maxlength="30" required></div>
+    </div>
+    <div class="lead-hp" aria-hidden="true"><label for="leadWebsite">Website</label><input id="leadWebsite" name="website" tabindex="-1" autocomplete="off"></div>
+    <label class="lead-consent" id="leadConsentRow"><input type="checkbox" id="leadConsent"><span id="leadConsentText">Ik vind het goed dat Nmbrs mijn gegevens gebruikt om contact met mij op te nemen over mijn groeiverhaal.</span></label>
+    <p class="lead-error hidden" id="leadError" role="alert"></p>
+    <div class="lead-actions">
+      <button type="submit" class="btn btn-primary btn-lg" id="leadSubmitBtn"><span class="material-symbols-outlined" aria-hidden="true">download</span> Download mijn groeiverhaal</button>
+      <p class="lead-fine">We gebruiken je gegevens alleen om je groeiverhaal op te volgen. Meer bull, minder spam.</p>
+    </div>
+  </form>
+</div>
+<div id="toastContainer" aria-live="polite"></div>
+<div id="report" aria-hidden="true"></div>
+<div id="pdfOverlay" class="pdf-overlay hidden" role="status" aria-live="polite"><div class="pdf-overlay-box">
+  <span class="pdf-spinner" id="pdfSpinner" aria-hidden="true"></span>
+  <b id="pdfTitle">PDF wordt gemaakt</b>
+  <span id="pdfProgress">Even geduld&hellip;</span>
+  <div class="pdf-ready hidden" id="pdfReady">
+    <a class="btn btn-primary" id="pdfDownloadLink" href="#" download>Download PDF <span class="arrow" aria-hidden="true">&darr;</span></a>
+    <a class="btn btn-secondary" id="pdfOpenLink" href="#" target="_blank" rel="noopener">Open in nieuw tabblad</a>
+    <button type="button" class="btn btn-tertiary" id="pdfCloseBtn">Sluiten</button>
+  </div>
+</div></div>
+
+<?!= include('data'); ?>
+
+<?!= include('app'); ?>
+
+<!-- groeiversneller:einde -->
+</body>
+</html>

@@ -5,11 +5,16 @@
  * De PDF komt pas vrij nadat iemand zijn NAWET-gegevens heeft achtergelaten;
  * die gegevens komen in het tabblad "Leads" van de Google Sheet, zodat sales ze kan opvolgen.
  *
- * Dit project bestaat uit twee bestanden:
+ * Dit project bestaat uit vijf bestanden (map groeiversneller-lite/apps-script in de repository):
  *   1. Code.gs     - dit bestand: serveert de app en bewaart sessies en leads in een Google Sheet.
- *   2. index.html  - de app (groeiversneller-lite/index.html uit de repository).
- *                    Maak in de Apps Script-editor een HTML-bestand met de naam "index"
- *                    en plak daar de volledige inhoud van index.html in.
+ *   2. index.html  - de pagina zelf; voegt de drie bestanden hieronder in.
+ *   3. stijl.html  - de vormgeving.
+ *   4. data.html   - de thema's en stellingen.
+ *   5. app.html    - de werking.
+ *   Maak in de Apps Script-editor via Bestanden + HTML vier HTML-bestanden met precies de
+ *   namen index, stijl, data en app (zonder ".html") en plak in elk de inhoud van het
+ *   gelijknamige bestand. De app is bewust in stukken geknipt: één groot bestand wordt bij
+ *   kopiëren en plakken makkelijk afgekapt.
  *
  * Wit scherm of foutmelding? Kies bovenin de functie "diagnose" en klik op Uitvoeren;
  * het Uitvoeringslogboek vertelt wat er mis is.
@@ -34,8 +39,16 @@
  *   Pijnpunten  - een regel per gevonden pijnpunt, handig voor analyses over prospects heen.
  */
 
-/** Naam van het HTML-bestand in dit project (zonder ".html"). */
+/** Naam van het HTML-hoofdbestand in dit project (zonder ".html"). */
 var HTML_BESTAND = 'index';
+
+/** De HTML-bestanden van de app, met de tekst waarop elk bestand moet eindigen. */
+var HTML_DELEN = {
+  index: 'groeiversneller:einde',
+  stijl: 'einde:stijl',
+  data: 'einde:data',
+  app: 'einde:app'
+};
 
 /** Naam van de Sheet die automatisch wordt aangemaakt. */
 var SHEET_NAAM = 'Groeiversneller Lite - Leads & sessies';
@@ -81,7 +94,7 @@ var KOLOMMEN_PIJNPUNTEN = [
 function doGet() {
   var probleem = controleerIndex_();
   if (probleem) return foutpagina_(probleem);
-  return HtmlService.createHtmlOutputFromFile(HTML_BESTAND)
+  return HtmlService.createTemplateFromFile(HTML_BESTAND).evaluate()
     .setTitle('Groeiversneller | Nmbrs')
     // Nodig voor een goede weergave op tablet en telefoon.
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
@@ -96,8 +109,10 @@ function doGet() {
  * index.html compleet is en of de Sheet bereikbaar is. Zie het Uitvoeringslogboek.
  */
 function diagnose() {
-  var probleem = controleerIndex_();
-  Logger.log(probleem ? 'PROBLEEM met index.html: ' + probleem : 'index.html is compleet (' + indexLengte_() + ' tekens).');
+  Object.keys(HTML_DELEN).forEach(function (naam) {
+    var p = controleerDeel_(naam);
+    Logger.log(p ? 'PROBLEEM: ' + p : naam + '.html is compleet (' + deelLengte_(naam) + ' tekens).');
+  });
   try {
     Logger.log('Sheet bereikbaar: ' + openSpreadsheet_().getUrl());
   } catch (e) {
@@ -107,25 +122,42 @@ function diagnose() {
   Logger.log('Tip: test de web-app in een incognitovenster om te zien wat een prospect ziet.');
 }
 
-/** Geeft een omschrijving van het probleem terug, of '' als index.html in orde is. */
+/**
+ * Wordt vanuit index.html aangeroepen (<?!= include('stijl'); ?>) om de andere
+ * HTML-bestanden in te voegen.
+ */
+function include(naam) {
+  return HtmlService.createHtmlOutputFromFile(naam).getContent();
+}
+
+/** Geeft een omschrijving van het eerste probleem terug, of '' als alle HTML-bestanden in orde zijn. */
 function controleerIndex_() {
+  var namen = Object.keys(HTML_DELEN);
+  for (var i = 0; i < namen.length; i++) {
+    var p = controleerDeel_(namen[i]);
+    if (p) return p;
+  }
+  return '';
+}
+
+function controleerDeel_(naam) {
   var inhoud;
   try {
-    inhoud = HtmlService.createHtmlOutputFromFile(HTML_BESTAND).getContent();
+    inhoud = HtmlService.createHtmlOutputFromFile(naam).getContent();
   } catch (e) {
-    return 'er is geen HTML-bestand met de naam "' + HTML_BESTAND + '" gevonden. ' +
-      'Maak via Bestanden + HTML een bestand met precies die naam en plak daar index.html in.';
+    return 'er is geen HTML-bestand met de naam "' + naam + '" gevonden. ' +
+      'Maak via Bestanden + HTML een bestand met precies die naam en plak daar ' + naam + '.html in.';
   }
-  if (inhoud.indexOf('groeiversneller:einde') === -1) {
-    return 'index.html lijkt niet volledig geplakt (' + inhoud.length + ' tekens gevonden). ' +
-      'Open index.html opnieuw, selecteer alles, kopieer, en plak het in het bestand "' + HTML_BESTAND + '". ' +
+  if (inhoud.indexOf(HTML_DELEN[naam]) === -1) {
+    return 'het bestand "' + naam + '" lijkt niet volledig geplakt (' + inhoud.length + ' tekens gevonden). ' +
+      'Open ' + naam + '.html opnieuw, selecteer alles (Ctrl+A), kopieer, en plak het in het bestand "' + naam + '". ' +
       'Sla op en maak daarna een nieuwe versie van de implementatie.';
   }
   return '';
 }
 
-function indexLengte_() {
-  try { return HtmlService.createHtmlOutputFromFile(HTML_BESTAND).getContent().length; } catch (e) { return 0; }
+function deelLengte_(naam) {
+  try { return HtmlService.createHtmlOutputFromFile(naam).getContent().length; } catch (e) { return 0; }
 }
 
 function foutpagina_(melding) {
