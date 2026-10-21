@@ -36,14 +36,14 @@ Plak utm-parameters achter de web-app-URL, bijvoorbeeld:
 https://script.google.com/macros/s/.../exec?utm_source=linkedin&utm_medium=social&utm_campaign=meer-tijd
 ```
 
-De bron komt in de kolom **Bron** van de tabbladen Leads en Sessies.
+De bron komt in de kolom **Bron** van de tabbladen Lite - Leads en Lite - Sessies.
 
 ## Tabbladen in de Sheet
 | Tabblad | Inhoud |
 |---|---|
-| **Leads** | Eén regel per prospect die gegevens heeft achtergelaten: NAWET, score, pijnpunten, kosten per jaar, eerste stap en bron. De lavendelkleurige kolommen *Opvolgstatus*, *Eigenaar* en *Notities* zijn voor sales; de app raakt ze niet aan. |
-| **Sessies** | Eén regel per gestarte scan, ook zonder gegevens. Zo zie je waar mensen afhaken (kolommen *Laatste stap* en *Gegevens achtergelaten*). |
-| **Pijnpunten** | Eén regel per aangetikt pijnpunt, voor analyses over alle prospects heen. |
+| **Lite - Leads** | Eén regel per prospect die gegevens heeft achtergelaten: NAWET, score, pijnpunten, kosten per jaar, eerste stap en bron. De lavendelkleurige kolommen *Opvolgstatus*, *Eigenaar* en *Notities* zijn voor sales; de app raakt ze niet aan. |
+| **Lite - Sessies** | Eén regel per gestarte scan, ook zonder gegevens. Zo zie je waar mensen afhaken (kolommen *Laatste stap* en *Gegevens achtergelaten*). |
+| **Lite - Pijnpunten** | Eén regel per aangetikt pijnpunt, voor analyses over alle prospects heen. |
 
 ## Aanpassen
 Pas teksten of de werking aan in `index.html` (die kun je ook lokaal in een browser openen om te testen).

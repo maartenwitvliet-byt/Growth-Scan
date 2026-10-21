@@ -33,11 +33,11 @@
  *     De bron komt mee in de tabbladen Sessies en Leads.
  *
  * Tabbladen in de Sheet:
- *   Leads       - een regel per prospect die zijn gegevens heeft achtergelaten (voor opvolging).
+ *   Lite - Leads       - een regel per prospect die zijn gegevens heeft achtergelaten (voor opvolging).
  *                 De kolommen "Opvolgstatus", "Eigenaar" en "Notities" zijn voor sales en
  *                 worden door de app nooit overschreven.
- *   Sessies     - een regel per ingevulde scan, ook zonder gegevens (handig om afhakers te zien).
- *   Pijnpunten  - een regel per gevonden pijnpunt, handig voor analyses over prospects heen.
+ *   Lite - Sessies     - een regel per ingevulde scan, ook zonder gegevens (handig om afhakers te zien).
+ *   Lite - Pijnpunten  - een regel per gevonden pijnpunt, handig voor analyses over prospects heen.
  */
 
 /** Naam van het HTML-hoofdbestand in dit project (zonder ".html"). */
@@ -58,15 +58,26 @@ var HTML_DELEN = {
 /** Naam van de Sheet die automatisch wordt aangemaakt. */
 var SHEET_NAAM = 'Groeiversneller Lite - Leads & sessies';
 
-/** Optioneel: ID van een bestaande Sheet. Leeg laten = automatisch aanmaken. */
+/**
+ * Optioneel: ID van een bestaande Sheet (het stuk tussen /d/ en /edit in de link).
+ * Leeg laten = bij "setup" automatisch een nieuwe Sheet aanmaken.
+ * De lite-versie maakt in die Sheet eigen tabbladen aan (Lite - Leads, Lite - Sessies,
+ * Lite - Pijnpunten) en laat bestaande tabbladen met rust.
+ */
 var SPREADSHEET_ID = '';
 
 /** Optioneel: e-mailadres(sen), komma-gescheiden, dat bij elke nieuwe lead een melding krijgt. */
 var NOTIFICATIE_EMAIL = '';
 
-var TAB_LEADS = 'Leads';
-var TAB_SESSIES = 'Sessies';
-var TAB_PIJNPUNTEN = 'Pijnpunten';
+// Eigen tabbladnamen, zodat de lite-versie nooit in de tabbladen van de volledige
+// Groeiversneller schrijft als beide in dezelfde Sheet staan (die hebben andere kolommen).
+var TAB_LEADS = 'Lite - Leads';
+var TAB_SESSIES = 'Lite - Sessies';
+var TAB_PIJNPUNTEN = 'Lite - Pijnpunten';
+
+// Eigen geheugensleutel: een Sheet die de volledige Groeiversneller in dit project
+// heeft onthouden, wordt zo niet per ongeluk hergebruikt.
+var PROP_SHEET = 'SPREADSHEET_ID_LITE';
 
 var KOLOMMEN_LEADS = [
   'Sessie-ID', 'Ontvangen', 'Naam', 'Organisatie', 'Adres', 'Postcode', 'Plaats', 'E-mail',
@@ -393,7 +404,7 @@ function stuurMelding_(lead, data) {
 function openSpreadsheet_() {
   if (SPREADSHEET_ID) return SpreadsheetApp.openById(SPREADSHEET_ID);
   var props = PropertiesService.getScriptProperties();
-  var id = props.getProperty('SPREADSHEET_ID');
+  var id = props.getProperty(PROP_SHEET);
   if (id) {
     try { return SpreadsheetApp.openById(id); } catch (e) { /* verwijderd: opnieuw aanmaken */ }
   }
@@ -403,7 +414,7 @@ function openSpreadsheet_() {
   tab_(ss, TAB_PIJNPUNTEN, KOLOMMEN_PIJNPUNTEN);
   var standaard = ss.getSheetByName('Sheet1') || ss.getSheetByName('Blad1');
   if (standaard && ss.getSheets().length > 1) ss.deleteSheet(standaard);
-  props.setProperty('SPREADSHEET_ID', ss.getId());
+  props.setProperty(PROP_SHEET, ss.getId());
   return ss;
 }
 
