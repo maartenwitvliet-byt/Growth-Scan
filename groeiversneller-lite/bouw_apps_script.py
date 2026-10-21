@@ -20,7 +20,7 @@ Resultaat: de map apps-script/ (samen met Code.gs klaar om te plakken) en web/in
 import pathlib, re, shutil
 
 # De /exec-URL van de Apps Script-webapp (Implementeren > Implementaties beheren).
-OPSLAG_URL = "https://script.google.com/a/macros/visma.com/s/AKfycbwV_7di3c57Di7x-8IcbW7V2XSPUYkPgCMjxRnwZembEubjIu72hnCOEKs6H2vFY28oAw/exec"
+OPSLAG_URL = "https://script.google.com/macros/s/AKfycbwV_7di3c57Di7x-8IcbW7V2XSPUYkPgCMjxRnwZembEubjIu72hnCOEKs6H2vFY28oAw/exec"
 
 hier = pathlib.Path(__file__).parent
 bron = (hier / "index.html").read_text(encoding="utf8")
