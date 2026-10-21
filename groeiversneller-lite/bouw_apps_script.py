@@ -36,13 +36,13 @@ for naam, inhoud in delen.items():
     pagina = pagina.replace(inhoud, "<?!= include('%s'); ?>" % naam, 1)
 assert "<?" not in bron, "index.html mag geen '<?' bevatten (Apps Script-templates)"
 
-# Eindmarkeringen staan binnen de CSS/JavaScript, niet in een HTML-commentaar:
-# Apps Script laat HTML-commentaar en <?...?> weg bij het inlezen van een bestand.
+# Eindmarkeringen zijn echte code, geen commentaar: Apps Script laat bij het inlezen
+# HTML-commentaar, CSS-commentaar en <?...?> weg, dus een markering in commentaar verdwijnt.
 eindes = {
-    "stijl": ("</style>", "/* einde:stijl */\n</style>"),
-    "beeld": ("</script>", "// einde:beeld\n</script>"),
-    "data": ("</script>", "// einde:data\n</script>"),
-    "app": ("</script>", "// einde:app\n</script>"),
+    "stijl": ("</style>", ".gv-einde-stijl { display: none; }\n</style>"),
+    "beeld": ("</script>", "window.__GV_EINDE_BEELD = true;\n</script>"),
+    "data": ("</script>", "window.__GV_EINDE_DATA = true;\n</script>"),
+    "app": ("</script>", "window.__GV_EINDE_APP = true;\n</script>"),
 }
 (uit / "index.html").write_text(pagina, encoding="utf8")
 for naam, inhoud in delen.items():

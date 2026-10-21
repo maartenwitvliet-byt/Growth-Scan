@@ -44,15 +44,16 @@
 var HTML_BESTAND = 'index';
 
 /**
- * De HTML-bestanden van de app, met een tekst die aan het eind van elk bestand staat.
- * Let op: geen HTML-commentaar gebruiken, want dat laat Apps Script weg bij het inlezen.
+ * De HTML-bestanden van de app, met een stukje code dat aan het eind van elk bestand staat.
+ * Let op: dit moet echte code zijn, geen commentaar; Apps Script laat HTML- en
+ * CSS-commentaar weg bij het inlezen van een bestand.
  */
 var HTML_DELEN = {
   index: '</body>',
-  stijl: 'einde:stijl',
-  beeld: 'einde:beeld',
-  data: 'einde:data',
-  app: 'einde:app'
+  stijl: 'gv-einde-stijl',
+  beeld: '__GV_EINDE_BEELD',
+  data: '__GV_EINDE_DATA',
+  app: '__GV_EINDE_APP'
 };
 
 /** Naam van de Sheet die automatisch wordt aangemaakt. */
@@ -108,7 +109,10 @@ var KOLOMMEN_PIJNPUNTEN = [
  * @return {HtmlOutput} De Groeiversneller Lite.
  */
 function doGet() {
-  var probleem = controleerIndex_();
+  // Alleen een ontbrekend bestand houdt de app tegen. Of een bestand volledig is
+  // geplakt, controleert de functie "diagnose"; een onvolledig bestand toont in de
+  // app zelf ook een melding onderaan het scherm.
+  var probleem = controleerBestaan_();
   if (probleem) return foutpagina_(probleem);
   return HtmlService.createTemplateFromFile(HTML_BESTAND).evaluate()
     .setTitle('Groeiversneller | Nmbrs')
@@ -146,12 +150,14 @@ function include(naam) {
   return HtmlService.createHtmlOutputFromFile(naam).getContent();
 }
 
-/** Geeft een omschrijving van het eerste probleem terug, of '' als alle HTML-bestanden in orde zijn. */
-function controleerIndex_() {
+/** Geeft een omschrijving terug als een van de HTML-bestanden ontbreekt, anders ''. */
+function controleerBestaan_() {
   var namen = Object.keys(HTML_DELEN);
   for (var i = 0; i < namen.length; i++) {
-    var p = controleerDeel_(namen[i]);
-    if (p) return p;
+    try { HtmlService.createHtmlOutputFromFile(namen[i]); } catch (e) {
+      return 'er is geen HTML-bestand met de naam "' + namen[i] + '" gevonden. ' +
+        'Maak via Bestanden + HTML een bestand met precies die naam en plak daar ' + namen[i] + '.html in.';
+    }
   }
   return '';
 }

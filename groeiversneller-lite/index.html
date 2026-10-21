@@ -10,7 +10,7 @@
         var d = document.getElementById("gv-laadfout") || document.createElement("div");
         d.id = "gv-laadfout";
         d.setAttribute("style", "position:fixed;left:16px;right:16px;bottom:16px;z-index:99999;background:#00001D;color:#fff;font:14px/1.4 Arial,sans-serif;padding:14px 18px;border-radius:12px");
-        d.textContent = "De Groeiversneller kon niet volledig laden: " + msg + " Ververs de pagina; blijft dit gebeuren, controleer dan of index.html volledig is geplakt.";
+        d.textContent = "De Groeiversneller kon niet volledig laden: " + msg + " Ververs de pagina; blijft dit gebeuren, voer dan in Apps Script de functie diagnose uit om te zien welk bestand niet volledig is geplakt.";
         (document.body || document.documentElement).appendChild(d);
       } catch (e) { /* niets meer te doen */ }
     }
