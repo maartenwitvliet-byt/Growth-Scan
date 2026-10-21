@@ -2324,6 +2324,30 @@ const THEMES = [
   // na elke wijziging wordt de sessie bewaard in de Google Sheet via
   // bewaarSessie() in Code.gs. Lokaal geopend werkt de app zoals altijd.
   // ---------------------------------------------------------------
+  // Webadres van de Apps Script-webapp (eindigt op /exec). Alleen nodig als deze pagina
+  // BUITEN Apps Script draait, bijvoorbeeld op groeiversneller.nmbrs.com; de pagina stuurt
+  // de gegevens dan naar dit adres. Leeg = lokaal testen, er wordt niets opgeslagen.
+  // bouw_apps_script.py vult dit automatisch in voor de versie in de map web/.
+  const OPSLAG_URL = "";
+
+  // Eén manier om de server aan te roepen, in Apps Script (google.script.run) en daarbuiten (fetch).
+  function hasServer() { return isAppsScript() || !!OPSLAG_URL; }
+  function serverCall(actie, payload, onOk, onFail) {
+    if (isAppsScript()) {
+      google.script.run.withSuccessHandler(onOk).withFailureHandler(onFail)[actie](payload);
+      return;
+    }
+    // text/plain houdt het een "eenvoudig" verzoek: geen CORS-voorcontrole, die Apps Script niet ondersteunt.
+    fetch(OPSLAG_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ actie, data: payload }),
+    })
+      .then(r => r.json())
+      .then(res => { if (res && res.ok) onOk(res); else onFail(new Error((res && res.fout) || "Onbekende fout")); })
+      .catch(onFail);
+  }
+
   const CLOUD_DELAY_MS = 1500;
   let cloudTimer = null;
   let cloudBusy = false;
@@ -2348,7 +2372,7 @@ const THEMES = [
   }
 
   function scheduleCloudSave() {
-    if (!isAppsScript() || !state.client || !state.sessionId) return;
+    if (!hasServer() || !state.client || !state.sessionId) return;
     cloudPending = true;
     setCloudStatus("pending");
     clearTimeout(cloudTimer);
@@ -2364,10 +2388,9 @@ const THEMES = [
       cloudBusy = false;
       if (cloudAgain) { cloudAgain = false; cloudSave(); }
     };
-    google.script.run
-      .withSuccessHandler(() => { cloudPending = cloudAgain; if (!cloudAgain) setCloudStatus("saved"); done(); })
-      .withFailureHandler(err => { setCloudStatus("error", err && err.message ? err.message : String(err)); done(); })
-      .bewaarSessie(payload);
+    serverCall("bewaarSessie", payload,
+      () => { cloudPending = cloudAgain; if (!cloudAgain) setCloudStatus("saved"); done(); },
+      err => { setCloudStatus("error", err && err.message ? err.message : String(err)); done(); });
   }
 
   function cloudPayload() {
@@ -2416,7 +2439,7 @@ const THEMES = [
 
   // Waarschuwen als iemand de pagina sluit terwijl er nog iets bewaard moet worden.
   window.addEventListener("beforeunload", (e) => {
-    if (isAppsScript() && (cloudPending || cloudBusy)) { e.preventDefault(); e.returnValue = ""; }
+    if (hasServer() && (cloudPending || cloudBusy)) { e.preventDefault(); e.returnValue = ""; }
   });
 
   function loadSession() {
@@ -3417,9 +3440,9 @@ const THEMES = [
       downloadPdf();
     };
 
-    if (!isAppsScript() || isBot) {
+    if (!hasServer() || isBot) {
       // Lokaal geopend (testen): er is geen Sheet, de PDF komt direct vrij.
-      if (!isAppsScript()) console.warn("Geen Apps Script-omgeving: gegevens niet naar de Sheet verstuurd.", lead);
+      if (!hasServer()) console.warn("Geen opslag ingesteld: gegevens niet naar de Sheet verstuurd.", lead);
       unlock();
       return;
     }
@@ -3429,15 +3452,14 @@ const THEMES = [
     let payload;
     try { payload = Object.assign(cloudPayload(), { lead, backup: null, items: null }); }
     catch (err) { payload = { sessieId: state.sessionId, klant: state.client, lead }; }
-    google.script.run
-      .withSuccessHandler(() => { leadSubmitBtn.disabled = false; leadSubmitBtn.innerHTML = originalHtml; unlock(); })
-      .withFailureHandler(err => {
+    serverCall("bewaarLead", payload,
+      () => { leadSubmitBtn.disabled = false; leadSubmitBtn.innerHTML = originalHtml; unlock(); },
+      err => {
         leadSubmitBtn.disabled = false;
         leadSubmitBtn.innerHTML = originalHtml;
         console.error(err);
         showLeadError("Het versturen lukte niet. Controleer je internetverbinding en probeer het opnieuw.");
-      })
-      .bewaarLead(payload);
+      });
   });
 
   $("#leadCloseBtn").addEventListener("click", closeLeadGate);

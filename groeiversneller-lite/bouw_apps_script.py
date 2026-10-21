@@ -10,10 +10,17 @@ vijf kleinere HTML-bestanden voor Google Apps Script:
   data   - de thema's en stellingen
   app    - de werking (JavaScript)
 
+Daarnaast maakt het web/index.html: de app als losse webpagina voor een eigen adres
+(bijv. groeiversneller.nmbrs.com). Die stuurt de gegevens naar de Apps Script-webapp
+op OPSLAG_URL hieronder, en komt zo in dezelfde Google Sheet.
+
 Gebruik:  python3 bouw_apps_script.py
-Resultaat: de map apps-script/ (samen met Code.gs klaar om te plakken).
+Resultaat: de map apps-script/ (samen met Code.gs klaar om te plakken) en web/index.html.
 """
 import pathlib, re, shutil
+
+# De /exec-URL van de Apps Script-webapp (Implementeren > Implementaties beheren).
+OPSLAG_URL = "https://script.google.com/a/macros/visma.com/s/AKfycbwV_7di3c57Di7x-8IcbW7V2XSPUYkPgCMjxRnwZembEubjIu72hnCOEKs6H2vFY28oAw/exec"
 
 hier = pathlib.Path(__file__).parent
 bron = (hier / "index.html").read_text(encoding="utf8")
@@ -52,3 +59,11 @@ for naam, inhoud in delen.items():
 
 for f in sorted(uit.glob("*.html")):
     print("%-12s %7d tekens" % (f.name, len(f.read_text(encoding="utf8"))))
+
+# Webversie voor een eigen adres
+web = hier / "web"
+web.mkdir(exist_ok=True)
+leeg = 'const OPSLAG_URL = "";'
+assert bron.count(leeg) == 1
+(web / "index.html").write_text(bron.replace(leeg, 'const OPSLAG_URL = "%s";' % OPSLAG_URL), encoding="utf8")
+print("web/index.html %7d tekens (opslag via %s...)" % (len((web / "index.html").read_text(encoding="utf8")), OPSLAG_URL[:45]))

@@ -29,6 +29,29 @@ HTML-bestanden geknipt: één groot bestand wordt bij kopiëren en plakken makke
 6. Kies **Implementeren > Nieuwe implementatie > Web-app**, met *Uitvoeren als: Ik* en *Toegang: Iedereen*.
 7. Optioneel: zet in `index.html` de constante `PRIVACY_URL`. Dan komt er een link naar het privacystatement bij de toestemming.
 
+## Eigen adres (groeiversneller.nmbrs.com)
+De app werkt op twee adressen tegelijk, allebei met dezelfde Google Sheet:
+
+- **De Apps Script-URL** (`.../exec`): blijft de app gewoon tonen.
+- **Een eigen adres**: zet `web/index.html` als gewone webpagina online. Die pagina stuurt
+  de gegevens naar de Apps Script-URL (functie `doPost` in `Code.gs`).
+
+Stappen:
+1. Host `web/index.html` als `index.html` bij bijvoorbeeld HubSpot, Netlify, Cloudflare Pages
+   of de eigen webserver.
+2. Laat de DNS-beheerder `groeiversneller.nmbrs.com` naar die hosting verwijzen (meestal een
+   CNAME-record; de hostingpartij vertelt welke waarde). Zorg voor https.
+3. Test in een incognitovenster: scan invullen, PDF downloaden en kijken of de regel in
+   **Lite - Leads** verschijnt.
+
+Belangrijk:
+- Werk Apps Script altijd bij via **Implementeren > Implementaties beheren > bewerken > Nieuwe versie**.
+  Een *nieuwe implementatie* krijgt een andere URL, en dan slaat de webpagina niets meer op.
+- Verandert de URL toch? Zet de nieuwe URL in `OPSLAG_URL` bovenin `bouw_apps_script.py`,
+  draai het script opnieuw en zet `web/index.html` opnieuw online.
+- De implementatie moet op *Toegang: Iedereen* staan, anders kan de webpagina niet opslaan.
+- Utm-parameters werken ook hier: `https://groeiversneller.nmbrs.com/?utm_source=linkedin`.
+
 ## Campagnelinks
 Plak utm-parameters achter de web-app-URL, bijvoorbeeld:
 

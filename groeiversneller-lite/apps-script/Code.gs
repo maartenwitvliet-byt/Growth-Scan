@@ -28,6 +28,10 @@
  *   - Publiceren: Implementeren > Nieuwe implementatie > Type: Web-app,
  *     "Uitvoeren als: Ik" en "Wie heeft toegang: Iedereen".
  *     Alleen zo kunnen prospects zonder Google-account de scan invullen.
+ *   - Eigen adres (bijv. groeiversneller.nmbrs.com): zet het bestand web/index.html uit de
+ *     repository op dat adres. Die pagina slaat via doPost hieronder op in dezelfde Sheet.
+ *     Werk de implementatie altijd bij via "Implementaties beheren" (nieuwe versie), niet via
+ *     een nieuwe implementatie: dan blijft de /exec-URL gelijk.
  *   - Campagnelinks: zet utm-parameters achter de web-app-URL, bijvoorbeeld
  *     .../exec?utm_source=linkedin&utm_medium=social&utm_campaign=meer-tijd
  *     De bron komt mee in de tabbladen Sessies en Leads.
@@ -122,6 +126,31 @@ function doGet() {
     // Haal dan de twee schuine strepen voor de volgende regel weg.
     // .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     ;
+}
+
+/**
+ * Ontvangt gegevens van de app als die op een eigen adres draait (bijv. groeiversneller.nmbrs.com)
+ * in plaats van binnen Apps Script. De pagina stuurt dan {actie, data} naar de /exec-URL van
+ * deze web-app. Dezelfde URL blijft via doGet ook gewoon de app zelf tonen.
+ * @param {Object} e Het verzoek van Apps Script.
+ * @return {TextOutput} JSON: {ok: true} of {ok: false, fout: '...'}.
+ */
+function doPost(e) {
+  var antwoord;
+  try {
+    var verzoek = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    if (verzoek.actie === 'bewaarSessie') {
+      antwoord = bewaarSessie(verzoek.data);
+    } else if (verzoek.actie === 'bewaarLead') {
+      antwoord = bewaarLead(verzoek.data);
+    } else {
+      throw new Error('Onbekende actie.');
+    }
+  } catch (err) {
+    antwoord = { ok: false, fout: String(err && err.message || err) };
+  }
+  return ContentService.createTextOutput(JSON.stringify(antwoord))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
