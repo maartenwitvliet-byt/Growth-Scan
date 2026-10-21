@@ -68,6 +68,20 @@ De bron komt in de kolom **Bron** van de tabbladen Lite - Leads en Lite - Sessie
 | **Lite - Sessies** | Eén regel per gestarte scan, ook zonder gegevens. Zo zie je waar mensen afhaken (kolommen *Laatste stap* en *Gegevens achtergelaten*). |
 | **Lite - Pijnpunten** | Eén regel per aangetikt pijnpunt, voor analyses over alle prospects heen. |
 
+## Benchmark monitor
+`setup` maakt drie extra tabbladen en een trigger die ze **elk uur** vernieuwt.
+Direct vernieuwen kan ook: voer in de editor de functie `vernieuwBenchmark` uit.
+
+| Tabblad | Inhoud |
+|---|---|
+| **Benchmark** | Dashboard. Kies in C7 een organisatie en zie die naast het **gemiddelde** en de **beste** (totaal en per thema), met kerncijfers, de positie in de ranking en een top 20. |
+| **Benchmark - Inzichten** | Meest aangetikte pijnpunten, gemiddelde volwassenheid per thema, gekozen eerste stap, bron, funnel en scans per week, elk met grafiek. |
+| **Benchmark - Data** | Eén regel per afgeronde scan (groeiverhaal bereikt of gegevens achtergelaten), gesorteerd op volwassenheid. |
+
+**Volwassenheid** = het percentage stellingen dat op orde is (niet aangetikt als pijnpunt).
+Hoger is beter. Bij uren en kosten per jaar is lager beter. De benchmark-tabbladen worden
+bij elke vernieuwing opnieuw opgebouwd: zet eigen aantekeningen dus in een ander tabblad.
+
 ## Aanpassen
 Pas teksten of de werking aan in `index.html` (die kun je ook lokaal in een browser openen om te testen).
 Maak daarna de Apps Script-bestanden opnieuw met `python3 bouw_apps_script.py`.

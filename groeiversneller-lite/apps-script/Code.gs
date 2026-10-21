@@ -231,7 +231,10 @@ function escapeHtml_(s) {
  */
 function setup() {
   var ss = openSpreadsheet_();
+  installeerBenchmarkTrigger_();
+  vernieuwBenchmark();
   Logger.log('Leads en sessies worden bewaard in: ' + ss.getUrl());
+  Logger.log('De benchmark-tabbladen worden elk uur vernieuwd.');
   return ss.getUrl();
 }
 
@@ -538,4 +541,374 @@ function parseDatum_(v) {
   if (!v) return null;
   var d = new Date(v);
   return isNaN(d.getTime()) ? null : d;
+}
+
+/* ------------------------------------------------------------------ */
+/* Benchmark monitor                                                    */
+/* ------------------------------------------------------------------ */
+/*
+ * Drie tabbladen, elk uur automatisch vernieuwd (en direct na "setup"):
+ *   Benchmark            - dashboard: kies een organisatie en zie die naast het gemiddelde
+ *                          en de best presterende, totaal en per thema, plus een ranking.
+ *   Benchmark - Inzichten - wat valt op over alle inzendingen heen (meest voorkomende
+ *                          pijnpunten, eerste stap, bron, funnel, scans per week).
+ *   Benchmark - Data     - een regel per afgeronde scan; de bron voor beide tabbladen.
+ *
+ * Maatstaf is "volwassenheid": het percentage stellingen dat op orde is (niet aangetikt
+ * als pijnpunt). Hoger is beter. Bij uren en kosten per jaar is lager beter.
+ * Handmatig vernieuwen: kies in de editor de functie "vernieuwBenchmark" en klik op Uitvoeren.
+ */
+
+var TAB_BENCH = 'Benchmark';
+var TAB_BENCH_INZICHT = 'Benchmark - Inzichten';
+var TAB_BENCH_DATA = 'Benchmark - Data';
+
+/** De thema's van de lite-scan met het aantal stellingen (gelijk aan data.html). */
+var BENCH_THEMAS = [
+  ['Arbeidsvoorwaarden & Contract', 5],
+  ['Voorbereiden op eerste werkdag', 6],
+  ['Administratie bij indiensttreding', 5],
+  ['Salarisverwerking', 4],
+  ['Ontwikkeling van medewerkers', 6]
+];
+
+var BENCH_KLEUREN = { geselecteerd: '#6B5DFF', gemiddelde: '#C3BFF5', beste: '#010149', accent: '#FE6E63' };
+
+var KOLOMMEN_BENCH_DATA = ['Organisatie (scan)', 'Organisatie', 'Datum', 'Gegevens achtergelaten',
+  'Volwassenheid totaal'].concat(BENCH_THEMAS.map(function (t) { return t[0]; })).concat(
+  ['Pijnpunten', 'Quick wins', 'Grote projecten', 'Uren per week', 'Kosten per jaar', 'Groeipotentieel',
+   'Eerste stap', 'Bron']);
+
+/** Vernieuwt alle benchmark-tabbladen. Draait elk uur via een trigger (zie setup). */
+function vernieuwBenchmark() {
+  var ss = openSpreadsheet_();
+  var sessies = tab_(ss, TAB_SESSIES, KOLOMMEN_SESSIES).getDataRange().getValues().slice(1);
+  var pijn = tab_(ss, TAB_PIJNPUNTEN, KOLOMMEN_PIJNPUNTEN).getDataRange().getValues().slice(1);
+  var b = berekenBenchmark_(sessies, pijn);
+  schrijfBenchData_(ss, b);
+  schrijfBenchInzichten_(ss, b);
+  schrijfBenchDashboard_(ss, b);
+  Logger.log('Benchmark vernieuwd: ' + b.rijen.length + ' afgeronde scans.');
+}
+
+/** Zorgt voor precies één uurlijkse trigger op vernieuwBenchmark. */
+function installeerBenchmarkTrigger_() {
+  var bestaat = ScriptApp.getProjectTriggers().some(function (t) {
+    return t.getHandlerFunction() === 'vernieuwBenchmark';
+  });
+  if (!bestaat) ScriptApp.newTrigger('vernieuwBenchmark').timeBased().everyHours(1).create();
+}
+
+/**
+ * Rekent alles uit, zonder iets aan de Sheet te veranderen (los te testen).
+ * @param {Array[]} sessies Rijen uit "Lite - Sessies" (zonder kopregel).
+ * @param {Array[]} pijn Rijen uit "Lite - Pijnpunten" (zonder kopregel).
+ */
+function berekenBenchmark_(sessies, pijn) {
+  var STAPPEN = ['Scan', 'Prioriteer', 'Business case', 'Groeiverhaal'];
+  var totaalStellingen = BENCH_THEMAS.reduce(function (a, t) { return a + t[1]; }, 0);
+
+  // Pijnpunten per sessie per thema
+  var perSessie = {};
+  pijn.forEach(function (r) {
+    var id = String(r[0] || '');
+    if (!id) return;
+    var p = perSessie[id] || (perSessie[id] = { totaal: 0, thema: {}, titels: [] });
+    p.totaal++;
+    p.thema[r[3]] = (p.thema[r[3]] || 0) + 1;
+    p.titels.push([String(r[4] || ''), String(r[3] || '')]);
+  });
+
+  var alle = sessies.filter(function (r) { return r[0]; });
+  var afgerond = alle.filter(function (r) { return r[5] === 'Groeiverhaal' || r[4] === 'ja'; });
+
+  // Een regel per afgeronde scan
+  var labels = {};
+  var rijen = afgerond.map(function (r) {
+    var id = String(r[0]);
+    var p = perSessie[id] || { totaal: 0, thema: {} };
+    var datum = r[2] instanceof Date ? r[2] : parseDatum_(r[2]);
+    var label = String(r[1] || 'Onbekend') + (datum ? ' · ' + datumLabel_(datum) : '');
+    if (labels[label]) { labels[label]++; label += ' (' + labels[label] + ')'; } else { labels[label] = 1; }
+    var themaScores = BENCH_THEMAS.map(function (t) { return 1 - Math.min(t[1], p.thema[t[0]] || 0) / t[1]; });
+    return [
+      label, String(r[1] || ''), datum || '', r[4] === 'ja' ? 'ja' : 'nee',
+      1 - Math.min(totaalStellingen, p.totaal) / totaalStellingen
+    ].concat(themaScores).concat([
+      p.totaal, getal_(r[9]), getal_(r[10]), leegOfGetal_(r[13]), leegOfGetal_(r[15]), getal_(r[6]),
+      String(r[17] || ''), bronNaam_(r[23])
+    ]);
+  });
+  rijen.sort(function (a, b) { return b[4] - a[4]; });   // hoogste volwassenheid eerst
+
+  var ids = {};
+  afgerond.forEach(function (r) { ids[String(r[0])] = true; });
+
+  // Meest aangetikte pijnpunten (alleen afgeronde scans)
+  var telPijn = {};
+  Object.keys(ids).forEach(function (id) {
+    ((perSessie[id] || {}).titels || []).forEach(function (t) {
+      var k = t[0] + '\u0000' + t[1];
+      telPijn[k] = (telPijn[k] || 0) + 1;
+    });
+  });
+  var topPijn = Object.keys(telPijn).map(function (k) {
+    var d = k.split('\u0000');
+    return [d[0], d[1], telPijn[k], rijen.length ? telPijn[k] / rijen.length : 0];
+  }).sort(function (a, b) { return b[2] - a[2] || (a[0] < b[0] ? -1 : 1); }).slice(0, 15);
+
+  // Gemiddelde volwassenheid per thema
+  var themaGem = BENCH_THEMAS.map(function (t, i) {
+    return [t[0], gemiddelde_(rijen.map(function (r) { return r[5 + i]; }))];
+  });
+
+  // Eerste stap
+  var stap = telOp_(rijen.map(function (r) { return r[16] || '(nog niet gekozen)'; }));
+
+  // Bron: scans en leads
+  var bronTel = {};
+  rijen.forEach(function (r) {
+    var b = bronTel[r[17]] || (bronTel[r[17]] = [r[17], 0, 0]);
+    b[1]++; if (r[3] === 'ja') b[2]++;
+  });
+  var bron = Object.keys(bronTel).map(function (k) { return bronTel[k]; })
+    .sort(function (a, b) { return b[1] - a[1]; });
+
+  // Funnel over alle sessies (ook niet afgeronde)
+  var funnel = STAPPEN.map(function (s, i) {
+    return ['Bereikte ' + s, alle.filter(function (r) { return STAPPEN.indexOf(r[5]) >= i || r[4] === 'ja'; }).length];
+  });
+  funnel.push(['Gegevens achtergelaten', alle.filter(function (r) { return r[4] === 'ja'; }).length]);
+
+  // Afgeronde scans en leads per week (maandag als begin)
+  var weekTel = {};
+  rijen.forEach(function (r) {
+    if (!(r[2] instanceof Date)) return;
+    var m = maandag_(r[2]);
+    var k = m.getTime();
+    var w = weekTel[k] || (weekTel[k] = [m, 0, 0]);
+    w[1]++; if (r[3] === 'ja') w[2]++;
+  });
+  var perWeek = Object.keys(weekTel).sort().map(function (k) { return weekTel[k]; });
+
+  return {
+    rijen: rijen, topPijn: topPijn, themaGem: themaGem, stap: stap, bron: bron,
+    funnel: funnel, perWeek: perWeek, sessiesTotaal: alle.length
+  };
+}
+
+function schrijfBenchData_(ss, b) {
+  var sh = benchTab_(ss, TAB_BENCH_DATA);
+  sh.getRange(1, 1, 1, KOLOMMEN_BENCH_DATA.length).setValues([KOLOMMEN_BENCH_DATA])
+    .setFontWeight('bold').setBackground('#6B5DFF').setFontColor('#00001D');
+  sh.setFrozenRows(1);
+  if (b.rijen.length) sh.getRange(2, 1, b.rijen.length, KOLOMMEN_BENCH_DATA.length).setValues(b.rijen);
+  sh.getRange('C:C').setNumberFormat('dd-mm-yyyy');
+  sh.getRange('E:J').setNumberFormat('0%');
+  sh.getRange('O:O').setNumberFormat('€ #,##0');
+  sh.getRange('P:P').setNumberFormat('0');
+  sh.setColumnWidth(1, 260);
+}
+
+function schrijfBenchInzichten_(ss, b) {
+  var sh = benchTab_(ss, TAB_BENCH_INZICHT);
+  sh.setHiddenGridlines(true);
+  sh.setColumnWidth(1, 300);
+  sh.getRange('A1').setValue('Inzichten over alle inzendingen').setFontSize(18).setFontWeight('bold');
+  sh.getRange('A2').setValue('Laatst vernieuwd: ' + datumLabel_(new Date(), true) + ' · ' +
+    b.rijen.length + ' afgeronde scans van ' + b.sessiesTotaal + ' gestarte sessies');
+
+  var blokken = [
+    { titel: 'Meest aangetikte pijnpunten', kop: ['Pijnpunt', 'Thema', 'Aantal scans', '% van scans'],
+      rijen: b.topPijn, formaat: { 4: '0%' }, grafiek: 'BAR', reeks: [3, 1], hoogte: 420 },
+    { titel: 'Gemiddelde volwassenheid per thema', kop: ['Thema', 'Gemiddeld op orde'],
+      rijen: b.themaGem, formaat: { 2: '0%' }, grafiek: 'COLUMN', reeks: [2, 1], procent: true },
+    { titel: 'Gekozen eerste stap', kop: ['Eerste stap', 'Aantal'],
+      rijen: b.stap, grafiek: 'PIE', reeks: [2, 1] },
+    { titel: 'Bron van de scans', kop: ['Bron', 'Afgeronde scans', 'Leads'],
+      rijen: b.bron, grafiek: 'COLUMN', reeks: [2, 2] },
+    { titel: 'Funnel: hoe ver komen bezoekers?', kop: ['Stap', 'Sessies'],
+      rijen: b.funnel, grafiek: 'BAR', reeks: [2, 1] },
+    { titel: 'Afgeronde scans en leads per week', kop: ['Week van', 'Afgeronde scans', 'Leads'],
+      rijen: b.perWeek, formaat: { 1: 'dd-mm-yyyy' }, grafiek: 'LINE', reeks: [2, 2] }
+  ];
+
+  var rij = 4;
+  blokken.forEach(function (bl) {
+    sh.getRange(rij, 1).setValue(bl.titel).setFontSize(13).setFontWeight('bold');
+    var kopRij = rij + 1;
+    sh.getRange(kopRij, 1, 1, bl.kop.length).setValues([bl.kop])
+      .setFontWeight('bold').setBackground('#E7E5FF');
+    var n = bl.rijen.length;
+    if (n) {
+      sh.getRange(kopRij + 1, 1, n, bl.kop.length).setValues(bl.rijen);
+      Object.keys(bl.formaat || {}).forEach(function (kol) {
+        sh.getRange(kopRij + 1, Number(kol), n, 1).setNumberFormat(bl.formaat[kol]);
+      });
+      // Grafiek rechts van de tabel: kolom 1 als labels, bl.reeks = [eerste waardekolom, aantal].
+      var builder = sh.newChart()
+        .setChartType(Charts.ChartType[bl.grafiek])
+        .addRange(sh.getRange(kopRij, 1, n + 1, 1))
+        .addRange(sh.getRange(kopRij, bl.reeks[0], n + 1, bl.reeks[1]))
+        .setNumHeaders(1)
+        .setPosition(rij, 6, 0, 0)
+        .setOption('title', bl.titel)
+        .setOption('width', 620)
+        .setOption('height', bl.hoogte || 320)
+        .setOption('legend', { position: bl.grafiek === 'PIE' ? 'right' : 'bottom' })
+        .setOption('colors', [BENCH_KLEUREN.geselecteerd, BENCH_KLEUREN.beste, BENCH_KLEUREN.accent, BENCH_KLEUREN.gemiddelde]);
+      if (bl.procent) builder.setOption('vAxis', { format: 'percent', minValue: 0, maxValue: 1 });
+      sh.insertChart(builder.build());
+    } else {
+      sh.getRange(kopRij + 1, 1).setValue('Nog geen gegevens.').setFontColor('#5B5B74');
+    }
+    var grafiekRijen = Math.ceil((bl.hoogte || 320) / 21) + 2;
+    rij = kopRij + Math.max(n + 3, grafiekRijen);
+  });
+}
+
+function schrijfBenchDashboard_(ss, b) {
+  var sh = benchTab_(ss, TAB_BENCH);
+  var D = "'" + TAB_BENCH_DATA + "'!";
+  sh.setHiddenGridlines(true);
+  sh.setColumnWidth(1, 20);
+  sh.setColumnWidth(2, 260);
+  [3, 4, 5, 6].forEach(function (c) { sh.setColumnWidth(c, 130); });
+
+  sh.getRange('B1').setValue('Benchmark monitor · Groeiversneller Lite').setFontSize(20).setFontWeight('bold');
+  sh.getRange('B2').setValue('Volwassenheid = percentage stellingen dat op orde is (niet aangetikt als pijnpunt). ' +
+    'Laatst vernieuwd: ' + datumLabel_(new Date(), true) + '. Wordt elk uur bijgewerkt.').setFontColor('#5B5B74');
+
+  // KPI's
+  sh.getRange('B4:F4').setValues([['Afgeronde scans', 'Leads', 'Conversie naar lead', 'Gem. volwassenheid', 'Gem. kosten per jaar']])
+    .setFontColor('#5B5B74');
+  sh.getRange('B5:F5').setFormulas([[
+    '=COUNTA(' + D + 'A2:A)',
+    '=COUNTIF(' + D + 'D2:D,"ja")',
+    '=IFERROR(C5/B5,0)',
+    '=IFERROR(AVERAGE(' + D + 'E2:E),0)',
+    '=IFERROR(AVERAGEIF(' + D + 'O2:O,">0"),0)'
+  ]]).setFontSize(22).setFontWeight('bold').setFontColor('#010149');
+  sh.getRange('D5:E5').setNumberFormat('0%');
+  sh.getRange('F5').setNumberFormat('€ #,##0');
+
+  // Keuze organisatie
+  sh.getRange('B7').setValue('Kies een organisatie:').setFontWeight('bold');
+  var keuze = sh.getRange('C7');
+  keuze.setDataValidation(SpreadsheetApp.newDataValidation()
+    .requireValueInRange(ss.getSheetByName(TAB_BENCH_DATA).getRange('A2:A'), true).setAllowInvalid(false).build())
+    .setBackground('#E7E5FF').setFontWeight('bold');
+  var huidige = String(keuze.getValue() || '');
+  var bestaatNog = b.rijen.some(function (r) { return r[0] === huidige; });
+  if (!bestaatNog) keuze.setValue(b.rijen.length ? nieuwste_(b.rijen)[0] : '');
+  sh.getRange('B8').setFormula('=IFERROR("Positie "&MATCH(C7,' + D + 'A2:A,0)&" van "&B5&" op volwassenheid","")')
+    .setFontColor('#5B5B74');
+
+  // Tabel 1: volwassenheid per thema (bron voor de grafiek)
+  var kolommen = ['E', 'F', 'G', 'H', 'I', 'J'];
+  var namen = ['Totaal'].concat(BENCH_THEMAS.map(function (t) { return t[0]; }));
+  sh.getRange('B10:E10').setValues([['Volwassenheid (% op orde)', 'Geselecteerd', 'Gemiddelde', 'Beste']])
+    .setFontWeight('bold').setBackground('#E7E5FF');
+  sh.getRange(11, 2, namen.length, 1).setValues(namen.map(function (n) { return [n]; }));
+  sh.getRange(11, 3, namen.length, 3).setFormulas(kolommen.map(function (k) {
+    var col = D + k + '2:' + k;
+    return [
+      '=IFERROR(INDEX(' + col + ',MATCH($C$7,' + D + '$A$2:$A,0)),"")',
+      '=IFERROR(AVERAGE(' + col + '),"")',
+      '=IFERROR(MAX(' + col + '),"")'
+    ];
+  })).setNumberFormat('0%');
+
+  // Tabel 2: kerncijfers
+  sh.getRange('B18:F18').setValues([['Kerncijfers', 'Geselecteerd', 'Gemiddelde', 'Beste', 'Beste betekent']])
+    .setFontWeight('bold').setBackground('#E7E5FF');
+  var kern = [
+    ['Pijnpunten', 'K', 'MIN', 'de minste pijnpunten', '0'],
+    ['Uren per week kwijt', 'N', 'MINIFS', 'de minste uren kwijt', '0.0'],
+    ['Kosten per jaar', 'O', 'MINIFS', 'de laagste kosten', '€ #,##0'],
+    ['Groeipotentieel', 'P', 'MAX', 'het hoogste groeipotentieel', '0']
+  ];
+  kern.forEach(function (k, i) {
+    var r = 19 + i, col = D + k[1] + '2:' + k[1];
+    var beste = k[2] === 'MINIFS' ? '=IFERROR(MINIFS(' + col + ',' + col + ',">0"),"")' : '=IFERROR(' + k[2] + '(' + col + '),"")';
+    var gem = k[2] === 'MINIFS' ? '=IFERROR(AVERAGEIF(' + col + ',">0"),"")' : '=IFERROR(AVERAGE(' + col + '),"")';
+    sh.getRange(r, 2).setValue(k[0]);
+    sh.getRange(r, 3, 1, 3).setFormulas([['=IFERROR(INDEX(' + col + ',MATCH($C$7,' + D + '$A$2:$A,0)),"")', gem, beste]])
+      .setNumberFormat(k[4]);
+    sh.getRange(r, 6).setValue(k[3]).setFontColor('#5B5B74');
+  });
+
+  // Grafiek 1: geselecteerd vs. gemiddelde vs. beste per thema
+  sh.insertChart(sh.newChart()
+    .setChartType(Charts.ChartType.COLUMN)
+    .addRange(sh.getRange('B10:E16'))
+    .setNumHeaders(1)
+    .setPosition(4, 8, 0, 0)
+    .setOption('title', 'Volwassenheid: geselecteerd vs. gemiddelde vs. beste')
+    .setOption('width', 760).setOption('height', 380)
+    .setOption('legend', { position: 'bottom' })
+    .setOption('vAxis', { format: 'percent', minValue: 0, maxValue: 1 })
+    .setOption('colors', [BENCH_KLEUREN.geselecteerd, BENCH_KLEUREN.gemiddelde, BENCH_KLEUREN.beste])
+    .build());
+
+  // Grafiek 2: ranking (top 20) op volwassenheid
+  var n = Math.min(20, b.rijen.length);
+  if (n) {
+    var data = ss.getSheetByName(TAB_BENCH_DATA);
+    sh.insertChart(sh.newChart()
+      .setChartType(Charts.ChartType.BAR)
+      .addRange(data.getRange(1, 1, n + 1, 1))
+      .addRange(data.getRange(1, 5, n + 1, 1))
+      .setNumHeaders(1)
+      .setPosition(25, 2, 0, 0)
+      .setOption('title', 'Ranking volwassenheid (top ' + n + ')')
+      .setOption('width', 760).setOption('height', Math.max(260, 40 + n * 26))
+      .setOption('legend', { position: 'none' })
+      .setOption('hAxis', { format: 'percent', minValue: 0, maxValue: 1 })
+      .setOption('colors', [BENCH_KLEUREN.geselecteerd])
+      .build());
+  }
+  ss.setActiveSheet(sh);
+  ss.moveActiveSheet(1);
+}
+
+/** Tabblad leegmaken (waarden, opmaak, grafieken) of aanmaken. */
+function benchTab_(ss, naam) {
+  var sh = ss.getSheetByName(naam) || ss.insertSheet(naam);
+  sh.getCharts().forEach(function (c) { sh.removeChart(c); });
+  // De keuze op het dashboard bewaren: alleen inhoud en opmaak wissen, de keuzecel blijft staan.
+  var keuze = naam === TAB_BENCH ? sh.getRange('C7').getValue() : '';
+  sh.clear();
+  if (naam === TAB_BENCH && keuze) sh.getRange('C7').setValue(keuze);
+  return sh;
+}
+
+function telOp_(lijst) {
+  var t = {};
+  lijst.forEach(function (x) { t[x] = (t[x] || 0) + 1; });
+  return Object.keys(t).map(function (k) { return [k, t[k]]; }).sort(function (a, b) { return b[1] - a[1]; });
+}
+
+function gemiddelde_(lijst) {
+  var g = lijst.filter(function (x) { return typeof x === 'number' && isFinite(x); });
+  return g.length ? g.reduce(function (a, b) { return a + b; }, 0) / g.length : 0;
+}
+
+function nieuwste_(rijen) {
+  return rijen.reduce(function (a, r) { return (r[2] instanceof Date && (!(a[2] instanceof Date) || r[2] > a[2])) ? r : a; }, rijen[0]);
+}
+
+function bronNaam_(v) {
+  var m = /utm_source=([^;]+)/.exec(String(v || ''));
+  return m ? m[1].trim().toLowerCase() : '(direct)';
+}
+
+function maandag_(d) {
+  var m = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  m.setDate(m.getDate() - ((m.getDay() + 6) % 7));
+  return m;
+}
+
+function datumLabel_(d, metTijd) {
+  return Utilities.formatDate(d, Session.getScriptTimeZone(), metTijd ? 'dd-MM-yyyy HH:mm' : 'dd-MM-yyyy');
 }
