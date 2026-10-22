@@ -411,7 +411,7 @@ kbd {
 
 .prio-card {
   background: var(--white); border: 1.5px solid var(--line); border-radius: var(--r-sm);
-  padding: 10px 12px; cursor: grab; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  padding: 10px 12px; cursor: grab; touch-action: none; user-select: none;
   box-shadow: var(--shadow-sm); transition: border-color .15s ease, transform .2s var(--ease);
 }
 .prio-card:hover { border-color: var(--blurple); }
@@ -663,14 +663,6 @@ kbd {
   background: var(--white); border-radius: var(--r-md); box-shadow: var(--shadow-md);
   padding: 14px; border: 1.5px solid var(--line);
 }
-.q-picker.q-picker-sheet {
-  left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); top: auto;
-  width: auto; max-width: 560px; margin: 0 auto; padding: 16px; border-radius: var(--r-lg);
-  box-shadow: 0 -6px 40px rgba(1, 1, 73, 0.28); animation: sheetIn .22s var(--ease);
-}
-.q-picker-sheet .q-picker-btn { padding: 12px; }
-.q-picker-sheet .q-picker-btn b { font-size: 15px; }
-@keyframes sheetIn { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 .q-picker-title { display: block; font-weight: 700; font-size: 14px; line-height: 1.2; margin: 2px 4px 10px; }
 .q-picker-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .q-picker-btn {
@@ -1131,7 +1123,7 @@ kbd {
         <p class="eyebrow">Stap 2 &middot; Prioriteer</p>
         <h2 class="display display-m">Meer focus. Minder ruis.</h2>
         <p class="page-sub">Zet elk pijnpunt op de matrix: wat levert het oplossen jou op, en hoeveel moeite kost het? Hoe hoger de impact en hoe lager de inspanning, hoe sneller je de groei merkt.</p>
-        <p class="scan-hint prio-hint"><span class="material-symbols-outlined" aria-hidden="true">touch_app</span><span><strong>Tik een kaartje aan</strong> en kies waar het hoort (op een computer kun je ook slepen). Twijfel je? Volg je gevoel &mdash; tik een geplaatst kaartje aan om het te verplaatsen.</span></p>
+        <p class="scan-hint prio-hint"><span class="material-symbols-outlined" aria-hidden="true">touch_app</span><span>Sleep een kaartje naar een vak, of <strong>tik het aan</strong> en kies waar het hoort. Twijfel je? Volg je gevoel &mdash; je kunt het later nog verplaatsen.</span></p>
       </div>
 
       <div class="prio-layout">
@@ -2862,24 +2854,6 @@ const THEMES = [
   function attachDrag(card) {
     card.addEventListener("pointerdown", (downEvt) => {
       if (downEvt.button !== undefined && downEvt.button !== 0) return;
-
-      // Vinger of pen: niet slepen. Een tik opent de vakkeuze, een veeg is gewoon scrollen.
-      // (Slepen met een vinger wordt op telefoons halverwege afgebroken: kaartje en scherm springen dan terug.)
-      if (downEvt.pointerType === "touch" || downEvt.pointerType === "pen") {
-        const start = { x: downEvt.clientX, y: downEvt.clientY, t: Date.now(), id: downEvt.pointerId };
-        const klaar = (upEvt) => {
-          if (upEvt.pointerId !== start.id) return;
-          window.removeEventListener("pointerup", klaar);
-          window.removeEventListener("pointercancel", klaar);
-          const tik = upEvt.type === "pointerup" &&
-            Math.hypot(upEvt.clientX - start.x, upEvt.clientY - start.y) < 10 && Date.now() - start.t < 800;
-          if (tik) openQuadrantPicker(card, false, true);
-        };
-        window.addEventListener("pointerup", klaar);
-        window.addEventListener("pointercancel", klaar);
-        return;
-      }
-
       downEvt.preventDefault();
       const key = card.dataset.key;
       const startedInMatrix = card.parentElement === priorityMatrix;
@@ -2974,7 +2948,7 @@ const THEMES = [
   function closeQuadrantPicker() {
     if (quadrantPicker) { quadrantPicker.remove(); quadrantPicker = null; }
   }
-  function openQuadrantPicker(card, viaToetsenbord, viaAanraking) {
+  function openQuadrantPicker(card, viaToetsenbord) {
     closeQuadrantPicker();
     const found = findItem(card.dataset.key);
     const opts = [
@@ -2993,26 +2967,19 @@ const THEMES = [
     document.body.appendChild(el);
     quadrantPicker = el;
     pickerScrollY = window.scrollY;
-    // Op een telefoon (of smal scherm) als paneel onderin: altijd in beeld, niets verspringt.
-    const alsPaneel = viaAanraking || window.innerWidth < 720;
-    if (alsPaneel) el.classList.add("q-picker-sheet");
-    if (!alsPaneel) {
-      const r = card.getBoundingClientRect();
-      const w = el.offsetWidth, h = el.offsetHeight;
-      let left = Math.min(Math.max(16, r.left + r.width / 2 - w / 2), window.innerWidth - w - 16);
-      let top = r.bottom + 8;
-      if (top + h > window.innerHeight - 16) top = Math.max(16, r.top - h - 8);
-      el.style.left = left + "px";
-      el.style.top = top + "px";
-    }
+    const r = card.getBoundingClientRect();
+    const w = el.offsetWidth, h = el.offsetHeight;
+    let left = Math.min(Math.max(16, r.left + r.width / 2 - w / 2), window.innerWidth - w - 16);
+    let top = r.bottom + 8;
+    if (top + h > window.innerHeight - 16) top = Math.max(16, r.top - h - 8);
+    el.style.left = left + "px";
+    el.style.top = top + "px";
     $$(".q-picker-btn", el).forEach(b => b.addEventListener("click", () => {
       const y = window.scrollY;
       closeQuadrantPicker();
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       placeInQuadrant(card, b.dataset.q);
       houdScrollpositie(y);
-      // Op een telefoon staat de matrix vaak buiten beeld: laat zien waar het kaartje is beland.
-      if (alsPaneel && b.dataset.q !== "quickwin") showToast("Geplaatst bij " + QUADRANTS[b.dataset.q].label + " ✓");
     }));
     // Alleen bij toetsenbordgebruik de focus verplaatsen: op een telefoon kan focus het scherm laten verspringen.
     if (viaToetsenbord) $(".q-picker-btn", el).focus({ preventScroll: true });
@@ -3025,10 +2992,7 @@ const THEMES = [
   window.addEventListener("scroll", () => {
     if (quadrantPicker && Math.abs(window.scrollY - pickerScrollY) > 60) closeQuadrantPicker();
   }, { passive: true });
-  // Niet sluiten bij het in- en uitschuiven van de adresbalk op een telefoon (dat is ook een resize).
-  window.addEventListener("resize", () => {
-    if (quadrantPicker && !quadrantPicker.classList.contains("q-picker-sheet")) closeQuadrantPicker();
-  });
+  window.addEventListener("resize", closeQuadrantPicker);
 
   function isInsideRect(x, y, rect) {
     return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;

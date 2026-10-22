@@ -635,24 +635,6 @@
   function attachDrag(card) {
     card.addEventListener("pointerdown", (downEvt) => {
       if (downEvt.button !== undefined && downEvt.button !== 0) return;
-
-      // Vinger of pen: niet slepen. Een tik opent de vakkeuze, een veeg is gewoon scrollen.
-      // (Slepen met een vinger wordt op telefoons halverwege afgebroken: kaartje en scherm springen dan terug.)
-      if (downEvt.pointerType === "touch" || downEvt.pointerType === "pen") {
-        const start = { x: downEvt.clientX, y: downEvt.clientY, t: Date.now(), id: downEvt.pointerId };
-        const klaar = (upEvt) => {
-          if (upEvt.pointerId !== start.id) return;
-          window.removeEventListener("pointerup", klaar);
-          window.removeEventListener("pointercancel", klaar);
-          const tik = upEvt.type === "pointerup" &&
-            Math.hypot(upEvt.clientX - start.x, upEvt.clientY - start.y) < 10 && Date.now() - start.t < 800;
-          if (tik) openQuadrantPicker(card, false, true);
-        };
-        window.addEventListener("pointerup", klaar);
-        window.addEventListener("pointercancel", klaar);
-        return;
-      }
-
       downEvt.preventDefault();
       const key = card.dataset.key;
       const startedInMatrix = card.parentElement === priorityMatrix;
@@ -747,7 +729,7 @@
   function closeQuadrantPicker() {
     if (quadrantPicker) { quadrantPicker.remove(); quadrantPicker = null; }
   }
-  function openQuadrantPicker(card, viaToetsenbord, viaAanraking) {
+  function openQuadrantPicker(card, viaToetsenbord) {
     closeQuadrantPicker();
     const found = findItem(card.dataset.key);
     const opts = [
@@ -766,26 +748,19 @@
     document.body.appendChild(el);
     quadrantPicker = el;
     pickerScrollY = window.scrollY;
-    // Op een telefoon (of smal scherm) als paneel onderin: altijd in beeld, niets verspringt.
-    const alsPaneel = viaAanraking || window.innerWidth < 720;
-    if (alsPaneel) el.classList.add("q-picker-sheet");
-    if (!alsPaneel) {
-      const r = card.getBoundingClientRect();
-      const w = el.offsetWidth, h = el.offsetHeight;
-      let left = Math.min(Math.max(16, r.left + r.width / 2 - w / 2), window.innerWidth - w - 16);
-      let top = r.bottom + 8;
-      if (top + h > window.innerHeight - 16) top = Math.max(16, r.top - h - 8);
-      el.style.left = left + "px";
-      el.style.top = top + "px";
-    }
+    const r = card.getBoundingClientRect();
+    const w = el.offsetWidth, h = el.offsetHeight;
+    let left = Math.min(Math.max(16, r.left + r.width / 2 - w / 2), window.innerWidth - w - 16);
+    let top = r.bottom + 8;
+    if (top + h > window.innerHeight - 16) top = Math.max(16, r.top - h - 8);
+    el.style.left = left + "px";
+    el.style.top = top + "px";
     $$(".q-picker-btn", el).forEach(b => b.addEventListener("click", () => {
       const y = window.scrollY;
       closeQuadrantPicker();
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       placeInQuadrant(card, b.dataset.q);
       houdScrollpositie(y);
-      // Op een telefoon staat de matrix vaak buiten beeld: laat zien waar het kaartje is beland.
-      if (alsPaneel && b.dataset.q !== "quickwin") showToast("Geplaatst bij " + QUADRANTS[b.dataset.q].label + " ✓");
     }));
     // Alleen bij toetsenbordgebruik de focus verplaatsen: op een telefoon kan focus het scherm laten verspringen.
     if (viaToetsenbord) $(".q-picker-btn", el).focus({ preventScroll: true });
@@ -798,10 +773,7 @@
   window.addEventListener("scroll", () => {
     if (quadrantPicker && Math.abs(window.scrollY - pickerScrollY) > 60) closeQuadrantPicker();
   }, { passive: true });
-  // Niet sluiten bij het in- en uitschuiven van de adresbalk op een telefoon (dat is ook een resize).
-  window.addEventListener("resize", () => {
-    if (quadrantPicker && !quadrantPicker.classList.contains("q-picker-sheet")) closeQuadrantPicker();
-  });
+  window.addEventListener("resize", closeQuadrantPicker);
 
   function isInsideRect(x, y, rect) {
     return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
