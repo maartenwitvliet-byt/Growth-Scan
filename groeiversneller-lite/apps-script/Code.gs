@@ -770,6 +770,10 @@ function schrijfBenchInzichten_(ss, b) {
 function schrijfBenchDashboard_(ss, b) {
   var sh = benchTab_(ss, TAB_BENCH);
   var D = "'" + TAB_BENCH_DATA + "'!";
+  // Formules worden met komma's geschreven; F() zet ze om naar puntkomma's als de Sheet
+  // een taal gebruikt waarin dat nodig is (zoals Nederlands).
+  var sep = formuleScheiding_(sh);
+  var F = function (f) { return sep === ',' ? f : f.replace(/,/g, sep); };
   sh.setHiddenGridlines(true);
   sh.setColumnWidth(1, 20);
   sh.setColumnWidth(2, 260);
@@ -788,7 +792,7 @@ function schrijfBenchDashboard_(ss, b) {
     '=IFERROR(C5/B5,0)',
     '=IFERROR(AVERAGE(' + D + 'E2:E),0)',
     '=IFERROR(AVERAGEIF(' + D + 'O2:O,">0"),0)'
-  ]]).setFontSize(22).setFontWeight('bold').setFontColor('#010149');
+  ].map(F)]).setFontSize(22).setFontWeight('bold').setFontColor('#010149');
   sh.getRange('D5:E5').setNumberFormat('0%');
   sh.getRange('F5').setNumberFormat('€ #,##0');
 
@@ -801,7 +805,7 @@ function schrijfBenchDashboard_(ss, b) {
   var huidige = String(keuze.getValue() || '');
   var bestaatNog = b.rijen.some(function (r) { return r[0] === huidige; });
   if (!bestaatNog) keuze.setValue(b.rijen.length ? nieuwste_(b.rijen)[0] : '');
-  sh.getRange('B8').setFormula('=IFERROR("Positie "&MATCH(C7,' + D + 'A2:A,0)&" van "&B5&" op volwassenheid","")')
+  sh.getRange('B8').setFormula(F('=IFERROR("Positie "&MATCH(C7,' + D + 'A2:A,0)&" van "&B5&" op volwassenheid","")'))
     .setFontColor('#5B5B74');
 
   // Tabel 1: volwassenheid per thema (bron voor de grafiek)
@@ -816,7 +820,7 @@ function schrijfBenchDashboard_(ss, b) {
       '=IFERROR(INDEX(' + col + ',MATCH($C$7,' + D + '$A$2:$A,0)),"")',
       '=IFERROR(AVERAGE(' + col + '),"")',
       '=IFERROR(MAX(' + col + '),"")'
-    ];
+    ].map(F);
   })).setNumberFormat('0%');
 
   // Tabel 2: kerncijfers
@@ -833,7 +837,7 @@ function schrijfBenchDashboard_(ss, b) {
     var beste = k[2] === 'MINIFS' ? '=IFERROR(MINIFS(' + col + ',' + col + ',">0"),"")' : '=IFERROR(' + k[2] + '(' + col + '),"")';
     var gem = k[2] === 'MINIFS' ? '=IFERROR(AVERAGEIF(' + col + ',">0"),"")' : '=IFERROR(AVERAGE(' + col + '),"")';
     sh.getRange(r, 2).setValue(k[0]);
-    sh.getRange(r, 3, 1, 3).setFormulas([['=IFERROR(INDEX(' + col + ',MATCH($C$7,' + D + '$A$2:$A,0)),"")', gem, beste]])
+    sh.getRange(r, 3, 1, 3).setFormulas([['=IFERROR(INDEX(' + col + ',MATCH($C$7,' + D + '$A$2:$A,0)),"")', gem, beste].map(F)])
       .setNumberFormat(k[4]);
     sh.getRange(r, 6).setValue(k[3]).setFontColor('#5B5B74');
   });
@@ -870,6 +874,20 @@ function schrijfBenchDashboard_(ss, b) {
   }
   ss.setActiveSheet(sh);
   ss.moveActiveSheet(1);
+}
+
+/**
+ * Welk scheidingsteken gebruiken formules in deze Sheet? Engelstalige Sheets gebruiken een
+ * komma (=SUM(1,2)), Nederlandse en veel andere een puntkomma (=SOM(1;2)). Dat hangt af van
+ * de landinstelling van de Sheet, dus we proberen het gewoon uit in een hulpcel.
+ */
+function formuleScheiding_(sh) {
+  var test = sh.getRange('Z1');
+  test.setFormula('=SUM(1,2)');
+  SpreadsheetApp.flush();
+  var werkt = test.getValue() === 3;
+  test.clearContent();
+  return werkt ? ',' : ';';
 }
 
 /** Tabblad leegmaken (waarden, opmaak, grafieken) of aanmaken. */
