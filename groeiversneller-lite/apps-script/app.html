@@ -455,7 +455,7 @@
     return t.items.filter(it => state.flagged.has(keyOf(t.id, it.nr))).length;
   }
 
-  function updateThemeNav() {
+  function updateThemeNav(naarActiefThema) {
     $$(".theme-link", themeNavList).forEach((b, i) => {
       const n = themeFlagCount(i);
       b.classList.toggle("active", i === state.themeIndex);
@@ -464,9 +464,14 @@
       $(".theme-link-count", b).textContent = n > 0 ? n : "";
       if (i === state.themeIndex) b.setAttribute("aria-current", "true"); else b.removeAttribute("aria-current");
     });
+    // Op een smal scherm is de themabalk een horizontale strook bovenaan. Alleen bij het wisselen
+    // van thema schuift die strook zijwaarts naar het actieve thema. Bewust geen scrollIntoView:
+    // dat scrolde ook de hele pagina terug naar boven, bij elke tik op een stelling.
     const active = $$(".theme-link", themeNavList)[state.themeIndex];
-    if (active && window.matchMedia("(max-width: 960px)").matches) {
-      active.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+    if (naarActiefThema && active && window.matchMedia("(max-width: 960px)").matches) {
+      const lijst = themeNavList.getBoundingClientRect(), knop = active.getBoundingClientRect();
+      const doel = themeNavList.scrollLeft + (knop.left - lijst.left) - (lijst.width - knop.width) / 2;
+      themeNavList.scrollTo({ left: Math.max(0, doel), behavior: "smooth" });
     }
   }
 
@@ -498,7 +503,7 @@
       scanItemList.appendChild(row);
     });
 
-    updateThemeNav();
+    updateThemeNav(true);
     scanPrevBtn.disabled = index === 0;
     const last = index === THEMES.length - 1;
     scanNextBtn.innerHTML = (last ? "Naar prioriteren" : "Volgend thema") + ' <span class="arrow" aria-hidden="true">&rarr;</span>';
