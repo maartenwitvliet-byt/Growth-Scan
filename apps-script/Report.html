@@ -1,0 +1,501 @@
+<script>
+/* Groei Scan · rapport: slides (1280x720), presenteren, PDF, Google Slides, HubSpot, leads. */
+var Report = (function () {
+  'use strict';
+  var t = GS.t, L = GS.L, esc = GS.esc, C = GS.content, S = GS.state, K = Charts.KLEUR;
+  var H = Views._helpers;
+  function ms(i) { return '<span class="ms" aria-hidden="true">' + i + '</span>'; }
+  function lines(s) { return String(s).split('\n').filter(Boolean); }
+  function klant() { return (S.scan.kantoor && S.scan.kantoor.naam) || (S.taal === 'en' ? 'your firm' : 'jullie kantoor'); }
+  function slide(cls, inner, opts) {
+    opts = opts || {};
+    return '<section class="slide ' + cls + '">' + inner +
+      (opts.logo === false ? '' : '<span class="sl-logo">' + GS.logo('secondary', opts.inverse ? 'inverse' : '') + '</span>') + '</section>';
+  }
+  function svgFit(svg) { return svg.replace('<svg', '<svg style="width:100%;height:100%"'); }
+
+  // ------------------------------------------------------------------
+  // Grafieken (ook voor Google Slides)
+  // ------------------------------------------------------------------
+  function grafieken(a) {
+    var B = H.bm(), dom = H.gekozenDomeinen(), sc = a.scores, p = a.businessCase.payroll, g = {};
+    var radarOpts = function (axes, beste, gem, jij) {
+      return { axes: axes, taal: S.taal, w: 560, h: 480, labelSize: 16, series: [
+        { values: beste, color: K.beste, width: 7, dot: 8 }, { values: gem, color: K.gem, width: 7, dot: 8 }, { values: jij, color: K.jij, width: 7, dot: 8 }] };
+    };
+    g['radar-totaal'] = Charts.radar(radarOpts(dom.map(function (d) { return L(d); }),
+      dom.map(function (d) { return (B.domein[d.id] || {}).beste; }), dom.map(function (d) { return (B.domein[d.id] || {}).gem; }), dom.map(function (d) { return sc.domein[d.id]; })));
+    dom.forEach(function (d) {
+      g['radar-' + d.id] = Charts.radar(radarOpts(d.subthemas.map(function (x) { return L(C.subthemas[x]); }),
+        d.subthemas.map(function (x) { return (B.subthema[x] || {}).beste; }), d.subthemas.map(function (x) { return (B.subthema[x] || {}).gem; }), d.subthemas.map(function (x) { return sc.subthema[x]; })));
+    });
+    var jaren = [1, 2, 3].map(function (n) { return t('bc.jaar', { n: n }); });
+    if (p) {
+      g['bm-stroken'] = Charts.kolommen({ taal: S.taal, w: 640, h: 420, items: [
+        { label: t('bc.jijOrg'), value: p.strokenPerFte, color: K.gem },
+        { label: t('bc.gemNL'), value: B.strokenPerFte.gemiddeld, color: K.jij, ink: '#00001D' },
+        { label: t('bc.potentie'), value: Number(C.instellingen.potentieStrokenPerFte), color: K.beste }] });
+      g.kostprijs = Charts.groepen({ taal: S.taal, eur: true, w: 600, h: 440, legend: jaren, groups: [
+        { label: '', values: p.jaren.map(function (j) { return j.huidigPerStrook; }) }, { label: '', values: p.jaren.map(function (j) { return j.nieuwPerStrook; }) }] });
+      g.stroken = Charts.groepen({ taal: S.taal, w: 600, h: 440, legend: jaren, groups: [
+        { label: '', values: p.jaren.map(function (j) { return j.strokenPerFteZonder; }) }, { label: '', values: p.jaren.map(function (j) { return j.strokenPerFteMet; }) }] });
+      g.fte = Charts.groepen({ taal: S.taal, w: 600, h: 440, axisDec: 2, legend: jaren, groups: [
+        { label: '', values: p.jaren.map(function (j) { return j.fteZonder; }) }, { label: '', values: p.jaren.map(function (j) { return j.fteMet; }) }] });
+      g['drie-jaar'] = Charts.lijnen({ taal: S.taal, w: 620, h: 300, labels: jaren, series: [
+        { values: p.jaren.map(function (j) { return j.huidigeKosten; }), color: K.beste },
+        { values: p.jaren.map(function (j) { return j.nieuweKosten; }), color: K.jij },
+        { values: p.jaren.map(function (j) { return Math.max(0, j.voordeel); }), color: K.gem }] });
+    }
+    return g;
+  }
+
+  // ------------------------------------------------------------------
+  // Slides
+  // ------------------------------------------------------------------
+  function deck() {
+    var a = GS.analyse(), B = H.bm(), g = grafieken(a);
+    var dom = H.gekozenDomeinen(), sc = a.scores, bc = a.businessCase, p = bc.payroll;
+    var begeleid = S.ctx.modus === 'begeleid';
+    var slides = [];
+    var vandaag = GS.datum(new Date());
+    var totaalGem = GSCalc.mean(dom.map(function (d) { return (B.domein[d.id] || {}).gem; }));
+
+    // 1. Cover
+    var r = 150, omtrek = 2 * Math.PI * r, pct = GS.isNum(sc.totaal) ? sc.totaal / 5 : 0;
+    slides.push(slide('sl-cover', '<div class="left">' + GS.logo('primary') +
+      '<h1 class="title">' + esc(t('s.cover.titel')).replace(' op ', '<br>op ').replace(' at ', '<br>at ') + '</h1>' +
+      '<p class="for">' + esc(t('s.cover.sub', { klant: klant() })) + '</p>' +
+      '<p class="meta">' + esc(t('s.cover.datum')) + ': ' + esc(vandaag) + '<br>' + esc(t('s.cover.versie')) + ': <b>' + esc(C.instellingen.rapportVersie || t('app.versie')) + '</b></p>' +
+      '<p class="door">' + esc(t('s.cover.door')) + (S.ctx.gebruiker ? ' · ' + esc(S.ctx.gebruiker.naam) : '') + '</p>' +
+      '<span class="pill">' + ms('monitoring') + esc(t('s.cover.label')) + '</span></div>' +
+      '<div class="right">' + GS.nshape('width:220px;height:220px;right:-50px;top:-40px') + GS.nshape('width:90px;height:90px;left:44px;bottom:56px', '#E7E5FF') + GS.nshape('width:46px;height:46px;left:170px;top:70px', '#FE6E63') +
+        '<div class="ring"><svg viewBox="0 0 360 360"><circle cx="180" cy="180" r="' + r + '" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="26"/><circle cx="180" cy="180" r="' + r + '" fill="none" stroke="#00001D" stroke-width="26" stroke-linecap="round" transform="rotate(-90 180 180)" stroke-dasharray="' + omtrek.toFixed(1) + '" stroke-dashoffset="' + (omtrek * (1 - pct)).toFixed(1) + '"/></svg>' +
+        '<div class="v"><b class="num">' + esc(GS.fScore(sc.totaal)) + '</b><span>' + esc(t('res.totaal')) + ' · 1–5</span></div></div></div>', { logo: false }));
+
+    // 2. Intro + leeswijzer
+    slides.push(slide('sl-intro', '<div class="col"><h2 class="sl-h">' + esc(t('s.intro.titel')) + '</h2><div style="height:26px"></div>' +
+      '<p>' + esc(t('s.intro.p1')) + '</p><p>' + esc(t('s.intro.p2')) + '</p><p><b>' + esc(t('s.intro.uitdagingen')) + '</b></p><ul>' +
+      [1, 2, 3, 4].map(function (i) { return '<li><b>' + esc(t('s.intro.u' + i + 't')) + '</b> ' + esc(t('s.intro.u' + i)) + '</li>'; }).join('') + '</ul></div>' +
+      '<div class="lees"><h3>' + esc(t('s.lees.titel')) + '</h3><p>' + esc(t('s.lees.p')) + '</p>' +
+      '<div class="row"><b>1</b>' + esc(t('s.lees.1')) + '</div><div class="row"><b>5</b>' + esc(t('s.lees.5')) + '</div>' +
+      '<p>' + esc(t('s.lees.p2', { klant: '{{K}}' })).replace('{{K}}', '<span class="k">' + esc(klant()) + '</span>') + '</p>' + GS.nshape('') + '</div>'));
+
+    // 3. Totaaloverzicht
+    slides.push(slide('sl-res', '<div class="sl-pad"><span class="sl-eyebrow">' + esc(t('s.res.eyebrow')) + '</span><h2 class="sl-h">' + esc(t('s.res.totaal')) + '</h2></div>' +
+      '<div style="position:absolute;left:74px;top:200px;width:560px">' + tabel(dom.map(function (d, i) { return { label: (i + 1) + '. ' + L(d), jij: sc.domein[d.id], gem: (B.domein[d.id] || {}).gem, beste: (B.domein[d.id] || {}).beste }; })) + '</div>' +
+      '<div class="sl-legend" style="position:absolute;left:80px;top:556px"><span><i style="background:' + K.jij + '"></i>' + esc(t('res.jijLang')) + '</span><span><i style="background:' + K.gem + '"></i>' + esc(t('res.gemLang')) + '</span><span><i style="background:' + K.beste + '"></i>' + esc(t('res.besteLang')) + '</span></div>' +
+      '<div style="position:absolute;left:400px;top:566px"><span class="sl-pillbtn">' + ms('bar_chart') + esc(t('s.res.benchmarkKnop')) + ' &nbsp;⟶</span></div>' +
+      '<div class="sl-chart" style="left:700px;top:130px;width:540px;height:500px">' + svgFit(g['radar-totaal']) + '</div>'));
+
+    // 4. Per domein
+    dom.forEach(function (d) {
+      slides.push(slide('sl-res', '<div class="sl-pad"><span class="sl-eyebrow">' + esc(t('s.res.eyebrow')) + '</span><h2 class="sl-h">' + esc(L(d, 'rapport')) + '</h2></div>' +
+        '<div class="sl-boxes" style="position:absolute;left:60px;top:190px">' +
+          '<div class="jij"><span>' + esc(t('res.jij')).toUpperCase() + '</span><b class="num">' + esc(GS.fScore(sc.domein[d.id])) + '</b></div>' +
+          '<div class="gem"><span>' + esc(t('res.gem')).toUpperCase() + '</span><b class="num">' + esc(GS.fScore((B.domein[d.id] || {}).gem)) + '</b></div>' +
+          '<div class="beste"><span>' + esc(t('res.beste')).toUpperCase() + '</span><b class="num">' + esc(GS.fScore((B.domein[d.id] || {}).beste)) + '</b></div></div>' +
+        '<div style="position:absolute;left:62px;top:356px;width:562px">' + tabel(d.subthemas.map(function (x) { return { label: L(C.subthemas[x]), jij: sc.subthema[x], gem: (B.subthema[x] || {}).gem, beste: (B.subthema[x] || {}).beste }; })) + '</div>' +
+        '<div class="sl-chart" style="left:660px;top:120px;width:580px;height:520px">' + svgFit(g['radar-' + d.id]) + '</div>'));
+    });
+
+    // 5. Benchmark stroken per FTE
+    if (p) {
+      slides.push(slide('bg-off sl-bm', '<div class="sl-pad" style="width:560px"><span class="sl-eyebrow">' + esc(t('s.bm.eyebrow')) + '</span><h2 class="sl-h">' + esc(t('s.bm.titel')) + '</h2>' +
+        '<p style="margin-top:56px;color:#5B5B74;font-size:17px;line-height:1.5">' + esc(t('s.bm.p')) + '</p>' +
+        '<div class="sl-legend" style="margin-top:44px;gap:20px;font-size:17px;font-weight:700"><span><i style="background:' + K.gem + ';border-radius:5px;width:34px;height:22px"></i>' + esc(t('bc.jijOrg')) + '</span><span><i style="background:' + K.jij + ';border-radius:5px;width:34px;height:22px"></i>' + esc(t('bc.gemNL')) + '</span><span><i style="background:' + K.beste + ';border-radius:5px;width:34px;height:22px"></i>' + esc(t('bc.potentie')) + '</span></div></div>' +
+        '<div class="sl-chart" style="left:640px;top:220px;width:600px;height:420px">' + svgFit(g['bm-stroken']) + '</div>' +
+        '<p style="position:absolute;left:672px;top:668px;font-size:12px;font-style:italic;color:#5B5B74;width:520px">' + esc(t('s.bm.bron', { n: B.n })) + '</p>'));
+    }
+
+    // 6. Grootste kansen
+    if (a.kansen.length) {
+      slides.push(slide('bg-off', '<div class="sl-pad"><span class="sl-eyebrow">' + esc(t('s.kans.eyebrow')) + '</span><h2 class="sl-h">' + esc(t('s.kans.titel')) + '</h2></div>' +
+        '<div class="sl-kansen">' + a.kansen.map(function (k, i) {
+          var f = C.functies[k.functie];
+          return '<div class="k"><span class="n">' + (i + 1) + '</span><span><b>' + esc(L(f)) + '</b><p>' + esc(L(f, 'beschrijving')) + '</p></span></div>';
+        }).join('') + '</div>', { logo: false }));
+    }
+
+    // 7. Hoe nu verder
+    slides.push(slide('bg-blurple sl-divider', '<span class="big">' + esc(t('s.verder.titel')) + '</span><div class="side"><h3>' + esc(t('s.verder.sub')) + '</h3><p>' + esc(t('s.verder.p')) + '</p></div>', { logo: false }));
+
+    // 8. Voorstel
+    slides.push(slide('', '<div class="sl-pad"><span class="sl-eyebrow">' + esc(t('s.voorstel.eyebrow')) + '</span><h2 class="sl-h" style="width:300px">' + esc(t('s.voorstel.titel')) + '</h2></div>' +
+      '<div class="sl-blocks">' + [1, 2, 3].map(function (i) {
+        return '<div class="sl-block"><span class="n">' + i + '</span><h4>' + esc(t('s.voorstel.' + i + 't')) + '</h4><p>' + esc(t('s.voorstel.' + i)) + '</p></div>';
+      }).join('') + '</div>'));
+
+    // 9. Hoe helpen we je groeien
+    var trap = [
+      { x: 60, y: 380, bg: '#E7E5FF', c: '#A9A1FF', ink: '#00001D', icon: 'fact_check' },
+      { x: 372, y: 304, bg: '#6B5DFF', c: '#E7E5FF', ink: '#00001D', icon: 'bar_chart' },
+      { x: 684, y: 232, bg: '#6B5DFF', c: '#E7E5FF', ink: '#00001D', icon: 'handshake', tag: t('s.samen.deal') },
+      { x: 996, y: 166, bg: '#1B1A63', c: '#FFFFFF', ink: '#FFFFFF', icon: 'rocket_launch', tag: t('s.samen.start'), coral: true }
+    ];
+    slides.push(slide('sl-stairs', '<div class="sl-pad"><span class="sl-eyebrow">' + esc(t('s.samen.eyebrow')) + '</span><h2 class="sl-h">' + esc(t('s.samen.titel')) + '</h2>' +
+      '<div class="sl-legend" style="margin-top:30px;font-size:15px;font-weight:700;gap:12px"><span><i style="border-radius:6px;width:34px;height:22px;background:#A9A1FF"></i>' + esc(t('s.samen.l1')) + '</span><span><i style="border-radius:6px;width:34px;height:22px;background:#6B5DFF"></i>' + esc(t('s.samen.l2')) + '</span><span><i style="border-radius:6px;width:34px;height:22px;background:#010149"></i>' + esc(t('s.samen.l3')) + '</span></div></div>' +
+      trap.map(function (s, i) {
+        return '<div class="st" style="left:' + s.x + 'px;top:' + s.y + 'px;background:' + s.bg + ';color:' + s.ink + '"><span class="big" style="color:' + s.c + '">' + (i + 1) + '</span>' + (s.tag ? '<span class="tag' + (s.coral ? ' coral' : '') + '">' + esc(s.tag).toUpperCase() + '</span>' : '') +
+          '<span class="ms" style="position:absolute;right:24px;top:24px;font-size:46px;color:' + s.c + '">' + s.icon + '</span><h4>' + esc(t('s.samen.' + (i + 1) + 't')) + '</h4><p>' + esc(t('s.samen.' + (i + 1))) + '</p></div>';
+      }).join('') +
+      '<div class="sl-timeline"><span style="background:#A9A1FF">' + esc(t('s.samen.t1')) + '</span><span style="background:#6B5DFF;color:#FFFFFF">' + esc(t('s.samen.t2')) + '</span><span style="background:#010149;color:#FFFFFF">' + esc(t('s.samen.t3')) + '</span></div>', { logo: false }));
+
+    // 10. 8 stappen
+    slides.push(slide('', '<div class="sl-pad"><span class="sl-eyebrow">' + esc(t('s.samen.eyebrow')) + '</span><h2 class="sl-h">' + esc(t('s.acht.titel')) + '</h2></div><div class="sl-acht">' +
+      [1, 2, 3, 4, 5, 6, 7, 8].map(function (i) {
+        var donker = i % 2 === 1;
+        return '<div style="background:' + (donker ? '#1B1A63' : '#6B5DFF') + ';color:' + (donker ? '#FFFFFF' : '#00001D') + '"><span class="big" style="color:' + (donker ? '#FFFFFF' : '#1B1A63') + '">' + i + '</span>' + (i === 1 ? '<span class="sl-start">' + esc(t('s.samen.start')).toUpperCase() + '</span>' : '') + '<h4>' + esc(t('s.acht.' + i + 't')) + '</h4><p>' + esc(t('s.acht.' + i)) + '</p></div>';
+      }).join('') + '</div>', { logo: false }));
+
+    // 11. Groeipotentieel
+    var heeftOverig = Object.keys(bc.domeinen).some(function (k) { return bc.domeinen[k]; });
+    if (p || heeftOverig) {
+      slides.push(slide('bg-midnight sl-gp', '<div class="sl-pad"><span class="sl-eyebrow" style="color:#8C82FF">' + esc(t('s.gp.eyebrow')) + '</span><h2 class="sl-h xl" style="width:520px;color:#FFFFFF">' + esc(t('s.gp.titel')) + '</h2></div>' +
+        '<span class="euro">€</span><div class="txt"><p>' + esc(t('s.gp.p1', { klant: '{{K}}' })).replace('{{K}}', '<b>' + esc(klant()) + '</b>') + '</p><p>' + esc(t('s.gp.p2')) + '</p><p>' + esc(t('s.gp.p3')) + '</p></div>' +
+        '<span style="position:absolute;left:66px;bottom:34px;height:80px">' + GS.logo('primary', 'inverse') + '</span>', { logo: false }));
+    }
+    if (p) {
+      var cmp = function (titel, oud, nieuw, fmt, key) {
+        return slide('bg-off', '<div class="sl-pad" style="width:560px"><span class="sl-eyebrow">' + esc(t('s.bm.eyebrow')) + '</span><h2 class="sl-h">' + esc(titel) + '</h2></div>' +
+          '<div class="sl-cmp"><span></span>' + [1, 2, 3].map(function (n) { return '<span class="h">' + esc(t('bc.jaar', { n: n })) + '</span>'; }).join('') +
+          '<span class="lbl">' + esc(t('bc.huidig')) + '</span>' + oud.map(function (v) { return '<span class="old num">' + esc(fmt(v)) + '</span>'; }).join('') +
+          '<span class="lbl">' + GS.logo('primary') + '</span>' + nieuw.map(function (v, i) { return '<span class="new y' + (i + 1) + ' num">' + esc(fmt(v)) + '</span>'; }).join('') + '</div>' +
+          '<div class="sl-chart" style="left:650px;top:110px;width:600px;height:480px">' + svgFit(g[key]) + '</div>');
+      };
+      var eur2 = function (v) { return GS.fEur(v, 2); };
+      slides.push(cmp(t('s.kp.titel'), p.jaren.map(function (j) { return j.huidigPerStrook; }), p.jaren.map(function (j) { return j.nieuwPerStrook; }), eur2, 'kostprijs'));
+      slides.push(cmp(t('s.st.titel'), p.jaren.map(function (j) { return j.strokenPerFteZonder; }), p.jaren.map(function (j) { return j.strokenPerFteMet; }), function (v) { return GS.fNum(v); }, 'stroken'));
+      slides.push(cmp(t('s.fte.titel'), p.jaren.map(function (j) { return j.fteZonder; }), p.jaren.map(function (j) { return j.fteMet; }), function (v) { return GS.fNum(v, 2); }, 'fte'));
+      var som = function (f) { return p.jaren.reduce(function (s, j) { return s + j[f]; }, 0); };
+      var rij = function (label, f, cls) { return '<tr><td>' + esc(label) + '</td>' + p.jaren.map(function (j) { return '<td class="' + cls + ' num">' + esc(GS.fEur(j[f], 2)) + '</td>'; }).join('') + '<td class="' + cls + ' num">' + esc(GS.fEur(som(f), 2)) + '</td></tr>'; };
+      slides.push(slide('bg-off', '<div class="sl-pad" style="width:560px"><span class="sl-eyebrow">' + esc(t('s.gp.eyebrow')) + '</span><h2 class="sl-h">' + esc(t('s.drie.titel')) + '</h2></div>' +
+        '<div class="sl-chart" style="left:640px;top:70px;width:600px;height:300px">' + svgFit(g['drie-jaar']) + '</div>' +
+        '<div class="sl-money"><table><thead><tr><th>' + esc(t('s.drie.omschrijving')) + '</th><th>' + esc(t('bc.jaar', { n: 1 })) + '</th><th>' + esc(t('bc.jaar', { n: 2 })) + '</th><th>' + esc(t('bc.jaar', { n: 3 })) + '</th><th>' + esc(t('bc.totaalKolom')) + '</th></tr></thead><tbody>' +
+        rij(t('bc.huidigeKosten'), 'huidigeKosten', 'o') + rij(t('bc.nieuweKosten'), 'nieuweKosten', 'n') + rij(t('bc.conversie'), 'investering', 'i') +
+        '<tr class="t"><td>' + esc(t('bc.voordeel')) + '</td>' + p.jaren.map(function (j) { return '<td class="num">' + esc(GS.fEur(j.voordeel, 2)) + '</td>'; }).join('') + '<td class="num">' + esc(GS.fEur(som('voordeel'), 2)) + '</td></tr></tbody></table></div>'));
+    }
+    if (heeftOverig) {
+      var ov = dom.filter(function (d) { return d.id !== 'payroll' && bc.domeinen[d.id]; });
+      slides.push(slide('bg-off', '<div class="sl-pad" style="width:900px"><span class="sl-eyebrow">' + esc(t('s.gp.eyebrow')) + '</span><h2 class="sl-h">' + esc(t('s.ov.titel')) + '</h2><p style="margin-top:16px;color:#5B5B74">' + esc(t('s.ov.p')) + '</p></div>' +
+        '<div class="sl-dom" style="grid-template-columns:repeat(' + ov.length + ',1fr)">' + ov.map(function (d) {
+          var x = bc.domeinen[d.id];
+          return '<div><span>' + esc(L(d)) + '</span><b class="num">' + esc(GS.fEur(x.teWinnenJaar)) + '</b><p>' + esc(t('bc.overigKosten', { bedrag: GS.fEur(x.kostenJaar) })) + '<br>' + x.jaren.map(function (j) { return esc(t('bc.jaar', { n: j.jaar })) + ': ' + esc(GS.fEur(j.voordeel)); }).join(' · ') + '</p></div>';
+        }).join('') + '</div>'));
+    }
+
+    // 12. Softe voordelen
+    var iconen = ['sentiment_satisfied', 'handshake', 'explore', 'workspace_premium'];
+    slides.push(slide('bg-off', '<div class="sl-pad"><span class="sl-eyebrow">' + esc(t('s.gp.eyebrow')) + '</span><h2 class="sl-h">' + esc(t('s.soft.titel')) + '</h2></div><div class="sl-soft">' +
+      [1, 2, 3, 4].map(function (i) { return '<div><span class="ic"><span class="ms">' + iconen[i - 1] + '</span></span><h4>' + esc(t('s.soft.' + i + 't')) + '</h4><p>' + esc(t('s.soft.' + i)) + '</p></div>'; }).join('') + '</div>'));
+
+    // 13. Vervolgstappen
+    slides.push(slide('bg-blurple sl-divider', '<span class="big">' + esc(t('s.vs.titel')) + '</span><div class="side"><h3>' + esc(t('s.vs.sub')) + '</h3><p>' + esc(t('s.vs.p')) + '</p></div>', { logo: false }));
+    var li = function (s, teken) { return lines(s).map(function (r) { return '<li>' + teken + ' ' + esc(r) + '</li>'; }).join(''); };
+    slides.push(slide('bg-off', '<div class="sl-pad"><span class="sl-eyebrow" style="font-weight:400">' + esc(t('s.stap.eyebrow')) + '</span><h2 class="sl-h">' + esc(t('s.stap.titel')) + '</h2></div><div class="sl-routes">' +
+      '<div class="r r1"><h3>' + esc(t('s.stap.zelfT')) + '</h3><p class="intro">' + esc(t('s.stap.zelf')) + '</p><div class="lbl">' + esc(t('s.stap.voordelen')) + '</div><ul>' + li(t('s.stap.zelfPlus'), '<b style="color:#6B5DFF">+</b>') + '</ul><div class="lbl" style="color:#00001D">' + esc(t('s.stap.rekening')) + '</div><ul>' + li(t('s.stap.zelfMin'), '–') + '</ul></div>' +
+      '<div class="r r2"><h3>' + esc(t('s.stap.wijT')) + '</h3><p class="intro">' + esc(t('s.stap.wij')) + '</p><div class="lbl">' + esc(t('s.stap.krijg')) + '</div><ul>' + li(t('s.stap.wijKrijg'), '<b style="color:#6B5DFF">■</b>') + '</ul><div class="lbl">' + esc(t('s.stap.voordelen')) + '</div><ul>' + li(t('s.stap.wijPlus'), '<b style="color:#FE6E63">+</b>') + '</ul><span class="advies">' + esc(t('s.stap.advies')).toUpperCase() + '</span></div></div>'));
+
+    // 14. Prijzen (alleen begeleid)
+    var pr = a.prijs;
+    if (begeleid && pr) {
+      var condTekst = esc(t('s.cond.p', { klant: '{{K}}', stroken: '{{S}}', pakket: '{{P}}', inbegrepen: '{{I}}' }))
+        .replace('{{K}}', '<b>' + esc(klant()) + '</b>').replace('{{S}}', '<b>' + esc(GS.fNum(pr.stroken)) + '</b>').replace('{{P}}', '<b>' + esc(pr.pakket.naam) + '</b>').replace('{{I}}', esc(GS.fNum(pr.pakket.inbegrepen)));
+      slides.push(slide('bg-midnight', '<div class="sl-pad"><span class="sl-eyebrow" style="color:#FFFFFF;font-weight:400">' + esc(t('s.cond.eyebrow')) + '</span><h2 class="sl-h" style="color:#FFFFFF">' + esc(t('s.cond.titel')) + '</h2></div>' +
+        '<div class="sl-cond" style="color:#00001D"><div class="l"><small>' + esc(t('s.cond.portaal')) + '</small><h3>' + esc(t('s.cond.machine')) + '</h3><p>' + condTekst + '</p><div class="price num">' + esc(GS.fEur(pr.pakket.totaal)) + '<small>' + esc(t('s.cond.mnd')) + '</small></div><span class="advies">' + esc(t('s.stap.advies')).toUpperCase() + '</span></div>' +
+        '<div class="r"><p>' + esc(t('s.cond.inbegrepen')) + '</p><ul>' + [1, 2, 3, 4, 5, 6].map(function (i) { return '<li><span>✓</span><span><b>' + esc(t('s.cond.i' + i + 't')) + '</b> ' + esc(t('s.cond.i' + i)) + '</span></li>'; }).join('') + '</ul></div></div>', { inverse: true }));
+      var opt = function (key, titel, sub, cls) {
+        var x = pr.add[key];
+        var prijs = !x ? '–' : x.opAanvraag ? t('vs.opAanvraag') : GS.fEur(x.prijs);
+        return '<div class="' + (cls || '') + '"><h4>' + esc(titel) + '</h4><small>' + esc(sub) + '</small><span class="p num">' + esc(prijs) + (x && !x.opAanvraag ? '<small>' + esc(t('s.cond.mnd')) + '</small>' : '') + '</span><ul>' + lines(t('s.opt.' + key)).map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('') + '</ul></div>';
+      };
+      slides.push(slide('bg-off', '<div class="sl-pad"><span class="sl-eyebrow" style="font-weight:400">' + esc(t('s.cond.eyebrow')) + '</span><h2 class="sl-h">' + esc(t('s.opt.titel')) + '</h2></div><div class="sl-opts">' +
+        opt('expense', 'Expense', t('vs.expenseSub')) + opt('engage', 'Engage', t('vs.engageSub')) + opt('perform', 'HR Perform', t('vs.performSub')) + opt('hire', 'HR Hire', t('vs.hireSub'), 'dark') + '</div>'));
+      slides.push(slide('sl-adv', '<div class="sl-pad"><span class="sl-eyebrow" style="font-weight:400">' + esc(t('s.adv.eyebrow')) + '</span><h2 class="sl-h">' + esc(t('s.adv.titel')) + '</h2><p style="margin-top:30px;width:340px;font-size:17px;color:#5B5B74">' + esc(t('s.adv.p')) + '</p></div>' +
+        '<div class="flags">' + [1, 2, 3, 4].map(function (i) { return '<div><span class="ms">flag</span><span><b>' + esc(t('s.adv.' + i + 't')) + '</b><p>' + esc(t('s.adv.' + i)) + '</p></span></div>'; }).join('') + '</div>' +
+        '<div class="box"><small>' + esc(t('s.adv.aanbeveling')) + '</small><h3>' + esc(t('s.adv.start', { pakket: '{{P}}' })).replace('{{P}}', '<u>' + esc(pr.pakket.naam) + '</u>') + '</h3><p style="font-size:15px;margin-bottom:8px">' + esc(t('s.adv.fundering')) + '</p>' +
+        [1, 2, 3, 4].map(function (i) { return '<div class="f"><b>' + esc(t('s.adv.f' + i + 't')) + '</b><p>' + esc(t('s.adv.f' + i)) + '</p></div>'; }).join('') + '</div>'));
+    }
+
+    // 15. Call to action en einde
+    slides.push(slide('bg-blurple sl-cta', '<div class="sl-pad"><span class="sl-eyebrow" style="color:#00001D;font-weight:400">' + esc(t('s.cta.eyebrow')) + '</span><h2 class="sl-h xl" style="width:720px">' + esc(t('s.cta.titel')) + '</h2></div>' +
+      '<div class="cards">' + [1, 2, 3].map(function (i) { return '<div><b>' + esc(t('s.cta.' + i + 't')) + '</b><p>' + esc(t('s.cta.' + i)) + '</p><span class="ar">→●</span></div>'; }).join('') + '</div>' +
+      '<span class="vraag">' + esc(t('s.cta.vraag')) + '</span><span class="knop">' + esc(t('s.cta.knop')) + '</span>', { logo: false }) .replace('</section>', '<span class="sl-logo">' + GS.logo('secondary', 'mono') + '</span></section>'));
+    var tegels = [[720, 0, 70, 40], [900, 0, 40, 26], [1030, 0, 120, 60], [1240, 0, 40, 26], [870, 124, 120, 104], [1074, 156, 34, 34], [1200, 124, 130, 104], [744, 164, 24, 24], [1040, 298, 120, 94], [910, 330, 30, 26], [1248, 326, 34, 34], [914, 502, 24, 26], [1088, 506, 18, 16], [1244, 496, 40, 34]];
+    slides.push(slide('bg-midnight sl-end', '<span class="tiles">' + tegels.map(function (x) { return '<span style="left:' + x[0] + 'px;top:' + x[1] + 'px;width:' + x[2] + 'px;height:' + x[3] + 'px"></span>'; }).join('') + '</span>' +
+      '<span class="bedankt">' + esc(t('s.einde')) + '</span>' + GS.logo('primary', 'inverse'), { logo: false }));
+
+    // Paginanummers (cover en einde zonder nummer)
+    return slides.map(function (html, i) {
+      if (i === 0 || i === slides.length - 1) return html;
+      return html.replace('</section>', '<span class="sl-pnum">' + (i + 1) + '</span></section>');
+    });
+  }
+
+  function tabel(rijen) {
+    return '<table class="sl-table"><thead><tr><th>' + esc(t('res.onderwerp')) + '</th><th>' + esc(t('res.scoreJij')) + '</th><th>' + esc(t('res.scoreGem')) + '</th><th>' + esc(t('res.scoreBeste')) + '</th></tr></thead><tbody>' +
+      rijen.map(function (r) { return '<tr><td>' + esc(r.label) + '</td><td class="j num">' + esc(GS.fScore(r.jij)) + '</td><td class="g num">' + esc(GS.fScore(r.gem)) + '</td><td class="b num">' + esc(GS.fScore(r.beste)) + '</td></tr>'; }).join('') + '</tbody></table>';
+  }
+
+  // ------------------------------------------------------------------
+  // Rapportscherm
+  // ------------------------------------------------------------------
+  var huidigDeck = [];
+  function rapport() {
+    huidigDeck = deck();
+    var begeleid = S.ctx.modus === 'begeleid';
+    var r = S.scan.rapport || {};
+    var afgerond = S.scan.status === 'afgerond';
+    var acties = '<div class="rap-actions">' +
+      '<button type="button" class="btn btn-dark" data-act="presenteer" data-i="0">' + ms('slideshow') + esc(t('rap.presenteren')) + '</button>' +
+      '<button type="button" class="btn btn-primary" data-act="pdf">' + ms('picture_as_pdf') + esc(t('rap.pdf')) + '</button>' +
+      (begeleid ? '<button type="button" class="btn btn-secondary" data-act="slides">' + ms('co_present') + esc(t('rap.slides')) + '</button>' : '') +
+      (begeleid && r.slidesUrl ? '<a class="btn btn-tertiary" target="_blank" rel="noopener" href="' + esc(r.slidesUrl) + '">' + esc(t('rap.slidesOpen')) + '</a>' : '') +
+      (begeleid && r.pdfUrl ? '<a class="btn btn-tertiary" target="_blank" rel="noopener" href="' + esc(r.pdfUrl) + '">' + esc(t('rap.pdfOpen')) + '</a>' : '') +
+      (begeleid ? '<button type="button" class="btn btn-secondary" data-act="hubspot">' + ms('hub') + esc(S.scan.hubspot ? t('rap.hubspotKlaar') : t('rap.hubspot')) + '</button>' : '') +
+      (begeleid ? (afgerond ? '<span class="chip ok">' + ms('task_alt') + esc(t('rap.afgerond')) + '</span>' : '<button type="button" class="btn btn-secondary" data-act="afronden">' + ms('task_alt') + esc(t('rap.afronden')) + '</button>') : '') +
+      '</div>';
+    return '<div class="wrap"><div class="page-head"><span class="eyebrow">' + esc(t('stap.rapport')) + '</span><h1 class="display d-m">' + esc(t('rap.titel')) + ' · ' + esc(klant()) + '</h1><p class="lede">' + esc(t('rap.sub')) + '</p>' + acties + '</div>' +
+      '<div class="deck-preview">' + huidigDeck.map(function (h, i) {
+        return '<div class="thumb" data-act="presenteer" data-i="' + i + '" role="button" tabindex="0" aria-label="' + esc(t('rap.pagina', { i: i + 1, n: huidigDeck.length })) + '">' + h + '<span class="tn">' + (i + 1) + '</span></div>';
+      }).join('') + '</div>' + H.navRow() + '</div>';
+  }
+  function schaalThumbs() {
+    GS.$$('.thumb').forEach(function (th) {
+      var s = th.querySelector('.slide');
+      if (s) s.style.transform = 'scale(' + (th.clientWidth / 1280) + ')';
+    });
+  }
+  Views.rapport = rapport;
+  Views.na.rapport = function () {
+    schaalThumbs();
+    if (!Report._resize) { Report._resize = true; window.addEventListener('resize', GS.debounce(function () { if (S.view === 'rapport') schaalThumbs(); }, 100)); }
+  };
+
+  // ------------------------------------------------------------------
+  // Presenteren
+  // ------------------------------------------------------------------
+  var pres = null;
+  function presenteer(start) {
+    var slides = deck();
+    var el = document.createElement('div');
+    el.className = 'present';
+    el.innerHTML = '<div class="stage"></div><div class="pctl"><button type="button" data-p="prev" aria-label="' + esc(t('knop.vorige')) + '">' + ms('chevron_left') + '</button><span class="pn"></span><button type="button" data-p="next" aria-label="' + esc(t('knop.volgende')) + '">' + ms('chevron_right') + '</button><button type="button" data-p="close" aria-label="' + esc(t('knop.sluiten')) + '">' + ms('close') + '</button></div>';
+    document.body.appendChild(el);
+    pres = { el: el, i: start || 0, slides: slides };
+    function maat() {
+      var s = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+      var st = el.querySelector('.stage');
+      st.style.width = (1280 * s) + 'px'; st.style.height = (720 * s) + 'px';
+      var sl = st.querySelector('.slide'); if (sl) sl.style.transform = 'scale(' + s + ')';
+    }
+    function toon() {
+      var st = el.querySelector('.stage');
+      st.innerHTML = pres.slides[pres.i];
+      var sl = st.querySelector('.slide'); sl.classList.add('slide-anim');
+      el.querySelector('.pn').textContent = t('rap.pagina', { i: pres.i + 1, n: pres.slides.length });
+      maat();
+    }
+    function nav(d) { pres.i = Math.max(0, Math.min(pres.slides.length - 1, pres.i + d)); toon(); }
+    function sluit() { document.removeEventListener('keydown', key); window.removeEventListener('resize', maat); el.remove(); pres = null; if (document.fullscreenElement) document.exitFullscreen().catch(function () {}); }
+    function key(e) {
+      if (['ArrowRight', 'PageDown', ' '].indexOf(e.key) >= 0) { e.preventDefault(); nav(1); }
+      else if (['ArrowLeft', 'PageUp'].indexOf(e.key) >= 0) { e.preventDefault(); nav(-1); }
+      else if (e.key === 'Escape') sluit();
+      else if (e.key === 'Home') { pres.i = 0; toon(); }
+      else if (e.key === 'End') { pres.i = pres.slides.length - 1; toon(); }
+    }
+    el.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-p]');
+      if (b) { var p = b.getAttribute('data-p'); if (p === 'close') sluit(); else nav(p === 'next' ? 1 : -1); return; }
+      nav(e.clientX > window.innerWidth / 3 ? 1 : -1);
+    });
+    document.addEventListener('keydown', key);
+    window.addEventListener('resize', maat);
+    toon();
+    if (el.requestFullscreen) el.requestFullscreen().catch(function () { /* niet toegestaan: gewoon in het venster */ });
+  }
+  GS.op('presenteer', function (el) { presenteer(Number(el.getAttribute('data-i') || 0)); });
+
+  // ------------------------------------------------------------------
+  // PDF (in de browser: html2canvas + jsPDF, pas geladen bij de eerste keer)
+  // ------------------------------------------------------------------
+  var LIBS = window.__PDF_LIBS || [
+    ['html2canvas', ['https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js']],
+    ['jspdf', ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js']]
+  ];
+  function laadScript(src) {
+    return new Promise(function (res, rej) {
+      var s = document.createElement('script'); s.src = src; s.async = true; s.crossOrigin = 'anonymous';
+      s.onload = res; s.onerror = function () { rej(new Error('Kon ' + src + ' niet laden')); };
+      document.head.appendChild(s);
+    });
+  }
+  function laadLibs() {
+    return LIBS.reduce(function (p, lib) {
+      return p.then(function () {
+        if (window[lib[0]]) return;
+        return lib[1].reduce(function (q, url) { return q.catch(function () { return laadScript(url); }); }, Promise.reject()).then(function () { if (!window[lib[0]]) throw new Error(lib[0] + ' niet beschikbaar'); });
+      });
+    }, Promise.resolve());
+  }
+  function overlay(inhoud) {
+    var el = document.createElement('div');
+    el.className = 'overlay';
+    el.innerHTML = '<div class="modal">' + inhoud + '</div>';
+    document.body.appendChild(el);
+    return el;
+  }
+  function bestandsnaam() {
+    var n = klant().replace(/[\\/:*?"<>|]+/g, '').trim();
+    return (S.taal === 'en' ? 'Growth report - ' : 'Groeirapport - ') + n + '.pdf';
+  }
+  function maakPdf() {
+    var ov = overlay('<div class="progress-box"><div class="spinner"></div><b class="sub-m">' + esc(t('rap.bezigPdf')) + '</b><span class="muted" id="pdfVoortgang"></span></div>');
+    var stage = GS.$('#pdfStage');
+    return laadLibs().then(function () {
+      return document.fonts && document.fonts.ready ? document.fonts.ready : null;
+    }).then(function () {
+      var slides = deck();
+      var pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'px', format: [1280, 720], hotfixes: ['px_scaling'], compress: true });
+      var i = 0;
+      function volgende() {
+        if (i >= slides.length) return Promise.resolve();
+        GS.$('#pdfVoortgang').textContent = t('rap.pagina', { i: i + 1, n: slides.length });
+        stage.innerHTML = slides[i];
+        var el = stage.querySelector('.slide');
+        return new Promise(function (r) { setTimeout(r, 30); }).then(function () {
+          return window.html2canvas(el, { scale: 1.6, backgroundColor: null, logging: false, useCORS: true, width: 1280, height: 720, windowWidth: 1280 });
+        }).then(function (canvas) {
+          if (i > 0) pdf.addPage([1280, 720], 'landscape');
+          pdf.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, 1280, 720, undefined, 'FAST');
+          i++;
+          return volgende();
+        });
+      }
+      return volgende().then(function () {
+        stage.innerHTML = '';
+        pdf.setProperties({ title: t('rap.titel') + ' - ' + klant(), author: 'Nmbrs', creator: 'Nmbrs Groei Scan' });
+        var blob = pdf.output('blob');
+        var url = URL.createObjectURL(blob);
+        ov.querySelector('.modal').innerHTML = '<button type="button" class="icon-btn close" data-sluit aria-label="' + esc(t('knop.sluiten')) + '">' + ms('close') + '</button>' +
+          '<div class="progress-box"><span class="ms" style="font-size:48px;color:#6B5DFF">task_alt</span><b class="sub-l">' + esc(bestandsnaam()) + '</b>' +
+          '<a class="btn btn-primary btn-lg" href="' + url + '" download="' + esc(bestandsnaam()) + '">' + ms('download') + esc(t('rap.pdf')) + '</a>' +
+          '<a class="btn btn-tertiary" href="' + url + '" target="_blank" rel="noopener">' + esc(t('knop.openen')) + '</a></div>';
+        ov.querySelector('[data-sluit]').addEventListener('click', function () { ov.remove(); URL.revokeObjectURL(url); });
+        var dl = ov.querySelector('a[download]');
+        dl.focus();
+        dl.addEventListener('click', function () { setTimeout(function () { GS.toast(t('rap.pdfKlaar', { bestand: bestandsnaam() })); }, 300); });
+      });
+    }).catch(function (err) {
+      console.error(err);
+      stage.innerHTML = '';
+      ov.remove();
+      GS.toast(t('rap.pdfFout'), 6000);
+    });
+  }
+  GS.op('pdf', function () {
+    if (S.ctx.modus === 'campagne' && !S.scan.lead) { leadFormulier(); return; }
+    maakPdf();
+  });
+
+  // ------------------------------------------------------------------
+  // Begeleid: opslaan forceren, afronden, Slides, HubSpot
+  // ------------------------------------------------------------------
+  function zekerOpgeslagen() {
+    return GS.api('api_scanOpslaan', JSON.parse(JSON.stringify(S.scan))).then(function (res) {
+      S.scan.id = res.id; if (res.sleutel) S.scan.sleutel = res.sleutel; return res;
+    });
+  }
+  function bezigKnop(el, tekst) {
+    var oud = el.innerHTML; el.disabled = true; el.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:3px"></span>' + esc(tekst);
+    return function () { el.disabled = false; el.innerHTML = oud; };
+  }
+  GS.op('afronden', function (el) {
+    var klaar = bezigKnop(el, t('opslaan.bezig'));
+    GS.api('api_scanAfronden', JSON.parse(JSON.stringify(S.scan))).then(function (res) {
+      S.scan.id = res.id; S.scan.status = 'afgerond';
+      if (res.benchmark) S.benchmark = res.benchmark;
+      var r = el.getBoundingClientRect(); GS.confetti(r.left + r.width / 2, r.top);
+      GS.toast(t('rap.afgerond'));
+      GS.render();
+    }).catch(function (err) { klaar(); GS.toast(t('fout.algemeen', { fout: err.message }), 6000); });
+  });
+  GS.op('hubspot', function (el) {
+    var klaar = bezigKnop(el, t('rap.hubspot'));
+    zekerOpgeslagen().then(function () { return GS.api('api_hubspotSync', S.scan.id); }).then(function (hs) {
+      S.scan.hubspot = hs; GS.toast(t('rap.hubspotKlaar')); GS.render();
+    }).catch(function (err) { klaar(); GS.toast(t('fout.algemeen', { fout: err.message }), 7000); });
+  });
+  GS.op('slides', function (el) {
+    var klaar = bezigKnop(el, t('rap.bezigSlides'));
+    var g = grafieken(GS.analyse());
+    var keys = Object.keys(g);
+    Promise.all(keys.map(function (k) { return Charts.naarPng(g[k], 2); })).then(function (pngs) {
+      var data = {}; keys.forEach(function (k, i) { data[k] = pngs[i]; });
+      return zekerOpgeslagen().then(function () { return GS.api('api_slidesMaken', S.scan.id, data); });
+    }).then(function (r) {
+      S.scan.rapport = r; GS.render();
+      GS.toast(t('rap.slidesOpen'));
+      window.open(r.slidesUrl, '_blank', 'noopener');
+    }).catch(function (err) { klaar(); GS.toast(t('fout.algemeen', { fout: err.message }), 8000); });
+  });
+
+  // ------------------------------------------------------------------
+  // Campagne: gegevens achterlaten voor de PDF
+  // ------------------------------------------------------------------
+  function leadFormulier() {
+    var k = S.scan.kantoor || {};
+    var vorige = {};
+    try { vorige = JSON.parse(localStorage.getItem('groeiscan_lead') || '{}') || {}; } catch (e) { vorige = {}; }
+    var velden = [['naam', 'rap.leadNaam', 'name', 'text'], ['organisatie', 'rap.leadOrganisatie', 'organization', 'text'], ['functie', 'rap.leadFunctie', 'organization-title', 'text'], ['email', 'rap.leadEmail', 'email', 'email'], ['telefoon', 'rap.leadTelefoon', 'tel', 'tel']];
+    var ov = overlay('<button type="button" class="icon-btn close" data-sluit aria-label="' + esc(t('knop.sluiten')) + '">' + ms('close') + '</button>' +
+      '<h2 class="display d-xs" style="padding-right:40px">' + esc(t('rap.leadTitel')) + '</h2><p class="muted">' + esc(t('rap.leadSub')) + '</p>' +
+      '<form id="leadForm" class="stack" novalidate><div class="grid-form">' + velden.map(function (v) {
+        var waarde = v[0] === 'organisatie' ? (k.naam || vorige.organisatie || '') : (vorige[v[0]] || '');
+        return '<div class="field"><label for="ld' + v[0] + '">' + esc(t(v[1])) + '</label><input class="input" id="ld' + v[0] + '" name="' + v[0] + '" type="' + v[3] + '" autocomplete="' + v[2] + '" value="' + esc(waarde) + '"></div>';
+      }).join('') + '</div>' +
+      '<input type="text" name="website" tabindex="-1" autocomplete="off" class="sr" aria-hidden="true">' +
+      '<label class="switch" style="align-items:flex-start;font-weight:400"><input type="checkbox" name="toestemming" id="ldToestemming" style="flex:none;margin-top:2px">' + esc(t('rap.leadToestemming')) + '</label>' +
+      '<p class="muted hidden" id="leadFout" role="alert" style="color:#F2554A;font-weight:600"></p>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><span class="muted">' + esc(t('rap.privacy')) + '</span><button type="submit" class="btn btn-primary btn-lg">' + esc(t('rap.leadKnop')) + ' <span class="arrow">→</span></button></div></form>');
+    ov.querySelector('[data-sluit]').addEventListener('click', function () { ov.remove(); });
+    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    var form = ov.querySelector('#leadForm');
+    var eerste = form.querySelector('input:not([value]), input[value=""]'); (eerste || form.querySelector('input')).focus();
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(form);
+      var lead = { naam: String(fd.get('naam') || '').trim(), organisatie: String(fd.get('organisatie') || '').trim(), functie: String(fd.get('functie') || '').trim(), email: String(fd.get('email') || '').trim(), telefoon: String(fd.get('telefoon') || '').trim(), toestemming: !!fd.get('toestemming'), website: String(fd.get('website') || '') };
+      var fout = [];
+      if (!lead.naam) fout.push(t('rap.leadNaam'));
+      if (!lead.organisatie) fout.push(t('rap.leadOrganisatie'));
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(lead.email)) fout.push(t('rap.leadEmail'));
+      if (lead.telefoon && lead.telefoon.replace(/\D/g, '').length < 9) fout.push(t('rap.leadTelefoon'));
+      if (!lead.toestemming) fout.push(S.taal === 'en' ? 'consent' : 'toestemming');
+      ['naam', 'organisatie', 'email'].forEach(function (k2) { form.querySelector('[name="' + k2 + '"]').setAttribute('aria-invalid', String((k2 === 'email' ? !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(lead.email) : !lead[k2]))); });
+      var box = form.querySelector('#leadFout');
+      if (fout.length) { box.textContent = t('rap.leadFout', { velden: fout.join(', ') }); box.classList.remove('hidden'); return; }
+      box.classList.add('hidden');
+      var knop = form.querySelector('[type="submit"]');
+      var klaar = bezigKnop(knop, t('opslaan.bezig'));
+      try { localStorage.setItem('groeiscan_lead', JSON.stringify({ naam: lead.naam, organisatie: lead.organisatie, functie: lead.functie, email: lead.email, telefoon: lead.telefoon })); } catch (err) { /* negeren */ }
+      if (!S.scan.kantoor.naam) S.scan.kantoor.naam = lead.organisatie;
+      GS.api('api_leadOpslaan', JSON.parse(JSON.stringify(S.scan)), lead).then(function (res) {
+        S.scan.id = res.id || S.scan.id; if (res.sleutel) S.scan.sleutel = res.sleutel;
+        if (res.benchmark) S.benchmark = res.benchmark;
+        S.scan.lead = { naam: lead.naam, email: lead.email };
+        S.scan.status = 'afgerond';
+        GS.gewijzigd({ server: false });
+        ov.remove();
+        GS.toast(t('rap.leadBedankt', { naam: lead.naam.split(' ')[0] }));
+        maakPdf();
+      }).catch(function (err) {
+        klaar();
+        box.textContent = t('fout.algemeen', { fout: err.message }); box.classList.remove('hidden');
+      });
+    });
+  }
+
+  return { deck: deck, grafieken: grafieken, presenteer: presenteer, maakPdf: maakPdf };
+})();
+</script>

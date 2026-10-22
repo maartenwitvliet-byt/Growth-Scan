@@ -1,0 +1,346 @@
+<script>
+/* Groei Scan · kern: status, vertaling, opslaan, navigatie. */
+var GS = (function () {
+  'use strict';
+
+  var BOOT = window.__BOOT || {};
+  var content = GSCalc.indexeer(BOOT.content);
+  var teksten = Object.assign({}, TEKSTEN);
+  Object.keys(content.teksten || {}).forEach(function (k) {
+    var o = content.teksten[k];
+    if (o && (o.nl || o.en)) teksten[k] = { nl: o.nl || (teksten[k] || {}).nl, en: o.en || (teksten[k] || {}).en };
+  });
+
+  var STAPPEN = {
+    begeleid: ['start', 'kerncijfers', 'scan', 'resultaten', 'prioriteren', 'businesscase', 'voorstel', 'rapport'],
+    campagne: ['start', 'scan', 'resultaten', 'businesscase', 'rapport']
+  };
+
+  var state = {
+    ctx: BOOT.ctx || { modus: 'campagne', taal: 'nl' },
+    taal: (BOOT.ctx && BOOT.ctx.taal) || 'nl',
+    view: 'start',
+    benchmark: BOOT.benchmark,
+    scan: null,
+    ui: { stelling: 0, toonBenchmark: true, toonOplossing: false, domeinDetail: null, opslaan: null }
+  };
+
+  // ------------------------------------------------------------------
+  // Hulpfuncties
+  // ------------------------------------------------------------------
+  function $(sel, root) { return (root || document).querySelector(sel); }
+  function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function esc(s) {
+    return String(s === undefined || s === null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function t(key, vars) {
+    var e = teksten[key];
+    var s = e ? (e[state.taal] || e.nl || key) : key;
+    if (vars) Object.keys(vars).forEach(function (k) { s = s.split('{' + k + '}').join(vars[k]); });
+    return s;
+  }
+  /** Gelokaliseerd veld uit de content: obj.nl / obj.en of obj[veld + '_nl']. */
+  function L(obj, veld) {
+    if (!obj) return '';
+    if (veld) return obj[veld + '_' + state.taal] || obj[veld + '_nl'] || '';
+    return obj[state.taal] || obj.nl || '';
+  }
+  function isNum(v) { return typeof v === 'number' && isFinite(v); }
+  var locale = function () { return state.taal === 'en' ? 'en-GB' : 'nl-NL'; };
+  function fScore(v) { return isNum(v) ? v.toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '–'; }
+  function fNum(v, dec) { return isNum(v) ? v.toLocaleString(locale(), { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 }) : '–'; }
+  function fEur(v, dec) { return isNum(v) ? v.toLocaleString(locale(), { style: 'currency', currency: 'EUR', minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 }) : '–'; }
+  function datum(d) { return new Date(d).toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' }); }
+  function debounce(fn, ms) { var tm; return function () { var a = arguments; clearTimeout(tm); tm = setTimeout(function () { fn.apply(null, a); }, ms); }; }
+  function deepGet(obj, pad) { return pad.split('.').reduce(function (o, k) { return o == null ? undefined : o[k]; }, obj); }
+  function deepSet(obj, pad, v) {
+    var ks = pad.split('.'); var o = obj;
+    for (var i = 0; i < ks.length - 1; i++) { if (o[ks[i]] == null || typeof o[ks[i]] !== 'object') o[ks[i]] = {}; o = o[ks[i]]; }
+    o[ks[ks.length - 1]] = v;
+  }
+  function parseNum(s) {
+    if (s === '' || s === null || s === undefined) return null;
+    var n = parseFloat(String(s).replace(/\s/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
+    return isFinite(n) ? n : null;
+  }
+
+  // ------------------------------------------------------------------
+  // Logo en N-vorm
+  // ------------------------------------------------------------------
+  function logo(soort, cls) {
+    var l = NMBRS_LOGOS[soort || 'primary'];
+    return '<span class="logo ' + (cls || '') + '" role="img" aria-label="Nmbrs"><svg viewBox="0 0 ' + l.w + ' ' + l.h + '" aria-hidden="true" focusable="false"><path class="sym" d="' + l.sym + '"/><path class="word" d="' + l.word + '"/></svg></span>';
+  }
+  function nshape(style, kleur) {
+    return '<span class="nshape" style="' + style + (kleur ? ';--c:' + kleur : '') + '"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="' + NSHAPE_PATH + '"/></svg></span>';
+  }
+
+  // ------------------------------------------------------------------
+  // Server
+  // ------------------------------------------------------------------
+  function api(naam) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      if (window.__MOCK_API) { window.__MOCK_API(naam, args).then(resolve, reject); return; }
+      if (typeof google === 'undefined' || !google.script) { reject(new Error('Geen verbinding met de server.')); return; }
+      var run = google.script.run.withSuccessHandler(resolve).withFailureHandler(function (e) { reject(e instanceof Error ? e : new Error(e && e.message || String(e))); });
+      run[naam].apply(run, args);
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // Scan
+  // ------------------------------------------------------------------
+  function nieuweScan() {
+    var tarief = Number(content.instellingen.standaardUurtarief) || 45;
+    return {
+      id: null, sleutel: null, modus: state.ctx.modus, taal: state.taal, status: 'concept',
+      kantoor: { naam: '', website: '', contactNaam: '', contactEmail: '', contactTelefoon: '', hubspotCompanyId: '', hubspotNaam: '' },
+      domeinen: content.domeinen.map(function (d) { return d.id; }),
+      kerncijfers: { fte: null, strokenPerMaand: null },
+      overigeKosten: { hr: { urenPerWeek: null, uurtarief: tarief }, tech: { urenPerWeek: null, uurtarief: tarief }, zelf: { urenPerWeek: null, uurtarief: tarief } },
+      antwoorden: {}, notities: {}, matrix: {},
+      voorstel: { startpakket: 'upGoEssential', opties: {}, medewerkers: null },
+      bron: BOOT.bron || {}, aangemaakt: new Date().toISOString()
+    };
+  }
+
+  var LOKAAL = 'groeiscan_' + (state.ctx.modus || 'campagne') + '_v1';
+  function lokaalBewaren() {
+    try { localStorage.setItem(LOKAAL, JSON.stringify({ scan: state.scan, view: state.view, ui: { stelling: state.ui.stelling }, opgeslagen: Date.now() })); } catch (e) { /* opslag niet beschikbaar */ }
+  }
+  function lokaalLezen() {
+    try { var r = JSON.parse(localStorage.getItem(LOKAAL) || 'null'); return r && r.scan ? r : null; } catch (e) { return null; }
+  }
+  function lokaalWissen() { try { localStorage.removeItem(LOKAAL); } catch (e) { /* negeren */ } }
+
+  var bezig = false, nogEens = false;
+  function serverBewaren() {
+    var s = state.scan;
+    if (!s) return;
+    var heeftInhoud = Object.keys(s.antwoorden).length || (s.kantoor && s.kantoor.naam);
+    if (!heeftInhoud) return;
+    if (bezig) { nogEens = true; return; }
+    bezig = true;
+    zetOpslaanStatus('bezig');
+    api('api_scanOpslaan', JSON.parse(JSON.stringify(s))).then(function (res) {
+      s.id = res.id; if (res.sleutel) s.sleutel = res.sleutel; s.gewijzigd = res.gewijzigd;
+      lokaalBewaren();
+      zetOpslaanStatus('klaar');
+    }).catch(function (err) {
+      console.error(err);
+      zetOpslaanStatus(navigator.onLine === false ? 'lokaal' : 'fout', err.message);
+    }).then(function () {
+      bezig = false;
+      if (nogEens) { nogEens = false; serverBewaren(); }
+    });
+  }
+  var serverBewarenLater = debounce(serverBewaren, 1500);
+
+  function gewijzigd(opties) {
+    if (!state.scan) return;
+    state.scan.taal = state.taal;
+    lokaalBewaren();
+    if (!opties || opties.server !== false) serverBewarenLater();
+  }
+
+  function zetOpslaanStatus(status, detail) {
+    state.ui.opslaan = status;
+    var el = $('#saveStatus');
+    if (!el) return;
+    var map = { bezig: ['cloud_upload', t('opslaan.bezig'), ''], klaar: ['cloud_done', t('opslaan.klaar'), 'ok'], fout: ['cloud_off', t('opslaan.fout'), 'err'], lokaal: ['save', t('opslaan.lokaal'), ''] };
+    var m = map[status];
+    if (!m) { el.innerHTML = ''; return; }
+    el.className = 'save-status ' + m[2];
+    el.title = detail || '';
+    el.innerHTML = '<span class="ms" aria-hidden="true">' + m[0] + '</span><span>' + esc(m[1]) + '</span>';
+  }
+
+  window.addEventListener('online', function () { serverBewaren(); });
+  window.addEventListener('beforeunload', function (e) {
+    if (bezig || state.ui.opslaan === 'bezig') { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  // ------------------------------------------------------------------
+  // Analyse (zelfde rekenmodel als de server)
+  // ------------------------------------------------------------------
+  function analyse() {
+    return GSCalc.analyse(content, state.scan, state.benchmark);
+  }
+
+  // ------------------------------------------------------------------
+  // Navigatie
+  // ------------------------------------------------------------------
+  function stappen() { return STAPPEN[state.ctx.modus] || STAPPEN.campagne; }
+
+  function ga(view, opties) {
+    if (view !== 'home' && !state.scan) { state.scan = nieuweScan(); }
+    state.view = view;
+    if (state.scan) lokaalBewaren();
+    render();
+    if (!opties || opties.scroll !== false) window.scrollTo({ top: 0, behavior: 'auto' });
+  }
+
+  function volgende() {
+    var s = stappen(); var i = s.indexOf(state.view);
+    if (i >= 0 && i < s.length - 1) ga(s[i + 1]);
+  }
+  function vorige() {
+    var s = stappen(); var i = s.indexOf(state.view);
+    if (i > 0) ga(s[i - 1]);
+  }
+
+  function render() {
+    renderTopbar();
+    var fn = Views[state.view] || Views.start;
+    var app = $('#app');
+    app.innerHTML = '<div class="view view-' + state.view + '">' + fn() + '</div>';
+    if (Views.na && Views.na[state.view]) Views.na[state.view](app);
+    document.documentElement.lang = state.taal;
+  }
+
+  function renderTopbar() {
+    var tb = $('#topbar');
+    var toon = state.view !== 'home' || state.ctx.modus === 'begeleid';
+    tb.classList.toggle('hidden', !toon);
+    if (!toon) return;
+    var s = stappen();
+    var actief = s.indexOf(state.view);
+    var klant = state.scan && state.scan.kantoor && state.scan.kantoor.naam;
+    var g = state.ctx.gebruiker;
+    var initialen = g ? (g.naam || g.email).split(/[\s.@]+/).filter(Boolean).slice(0, 2).map(function (x) { return x[0].toUpperCase(); }).join('') : '';
+    tb.innerHTML =
+      '<div class="tb-left">' +
+        '<span data-act="naarHome" title="' + esc(t('app.naam')) + '">' + logo('secondary') + '</span>' +
+        (klant ? '<span class="client-tag"><span class="ms" aria-hidden="true">apartment</span>' + esc(klant) + '</span>' : '') +
+      '</div>' +
+      '<nav class="steps" aria-label="Stappen">' + (state.view === 'home' ? '' : s.map(function (st, i) {
+        return '<button type="button" class="step' + (i === actief ? ' active' : '') + (i < actief ? ' done' : '') + '" data-act="ga" data-view="' + st + '"' + (i === actief ? ' aria-current="step"' : '') + '><span class="step-num">' + (i + 1) + '</span><span class="lbl">' + esc(t('stap.' + st)) + '</span></button>';
+      }).join('')) + '</nav>' +
+      '<div class="tb-right">' +
+        '<span id="saveStatus" class="save-status" aria-live="polite"></span>' +
+        '<span class="lang" role="group" aria-label="Taal / Language"><button type="button" data-act="taal" data-taal="nl" aria-pressed="' + (state.taal === 'nl') + '">NL</button><button type="button" data-act="taal" data-taal="en" aria-pressed="' + (state.taal === 'en') + '">EN</button></span>' +
+        (g ? '<span class="avatar" title="' + esc(g.naam + ' · ' + g.email) + '">' + esc(initialen) + '</span>' : '') +
+      '</div>';
+    zetOpslaanStatus(state.ui.opslaan);
+    var act = $('.step.active', tb);
+    if (act && act.scrollIntoView && window.innerWidth < 960) act.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }
+
+  // ------------------------------------------------------------------
+  // Events: data-act (klik) en data-bind (invoer)
+  // ------------------------------------------------------------------
+  var acties = {};
+  function op(naam, fn) { acties[naam] = fn; }
+
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest('[data-act]');
+    if (!el || el.disabled) return;
+    var fn = acties[el.getAttribute('data-act')];
+    if (fn) { e.preventDefault(); fn(el, e); }
+  });
+
+  function bindWaarde(el) {
+    var type = el.getAttribute('data-type');
+    if (el.type === 'checkbox') return el.checked;
+    if (type === 'num') {
+      var n = parseNum(el.value);
+      var schaal = Number(el.getAttribute('data-schaal') || 1);
+      return n === null ? null : n / schaal;
+    }
+    return el.value;
+  }
+  function onBind(e) {
+    var el = e.target.closest('[data-bind]');
+    if (!el || !state.scan) return;
+    var pad = el.getAttribute('data-bind');
+    deepSet(state.scan, pad, bindWaarde(el));
+    if (el.hasAttribute('aria-invalid')) el.removeAttribute('aria-invalid');
+    gewijzigd();
+    var na = el.getAttribute('data-na');
+    if (na && acties[na]) acties[na](el, e);
+  }
+  document.addEventListener('input', onBind);
+  document.addEventListener('change', function (e) { if (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') onBind(e); });
+
+  op('ga', function (el) { ga(el.getAttribute('data-view')); });
+  op('volgende', function () { volgende(); });
+  op('vorige', function () { vorige(); });
+  op('naarHome', function () { if (state.ctx.modus === 'begeleid') { serverBewaren(); ga('home'); } else ga('start'); });
+  op('taal', function (el) {
+    state.taal = el.getAttribute('data-taal');
+    if (state.scan) { state.scan.taal = state.taal; gewijzigd(); }
+    try { localStorage.setItem('groeiscan_taal', state.taal); } catch (e) { /* negeren */ }
+    render();
+  });
+
+  // ------------------------------------------------------------------
+  // Toast en confetti
+  // ------------------------------------------------------------------
+  function toast(tekst, ms) {
+    var el = document.createElement('div');
+    el.className = 'toast' + (tekst.length > 70 ? ' long' : '');
+    el.textContent = tekst;
+    $('#toasts').appendChild(el);
+    requestAnimationFrame(function () { el.classList.add('in'); });
+    setTimeout(function () { el.classList.remove('in'); setTimeout(function () { el.remove(); }, 300); }, ms || (tekst.length > 70 ? 5200 : 2200));
+  }
+  function confetti(x, y) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var kleuren = ['#6B5DFF', '#6B5DFF', '#E7E5FF', '#010149', '#FE6E63'];
+    for (var i = 0; i < 22; i++) {
+      var p = document.createElement('span');
+      p.className = 'confetti';
+      p.innerHTML = '<svg viewBox="0 0 100 100"><path fill="' + kleuren[i % kleuren.length] + '" d="' + NSHAPE_PATH + '"/></svg>';
+      p.style.left = x + 'px'; p.style.top = y + 'px';
+      var a = Math.random() * Math.PI * 2, d = 60 + Math.random() * 110;
+      p.style.setProperty('--dx', Math.cos(a) * d + 'px');
+      p.style.setProperty('--dy', Math.sin(a) * d + 'px');
+      p.style.setProperty('--rot', (Math.random() * 360) + 'deg');
+      document.body.appendChild(p);
+      setTimeout(function (el) { el.remove(); }.bind(null, p), 820);
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Start
+  // ------------------------------------------------------------------
+  function start() {
+    // Taal: een ?taal= in de link wint, anders de laatste keuze op dit apparaat.
+    if (!(BOOT.ctx && BOOT.ctx.taalExpliciet)) {
+      try { var tl = localStorage.getItem('groeiscan_taal'); if (tl) state.taal = tl === 'en' ? 'en' : 'nl'; } catch (e) { /* negeren */ }
+    }
+    if (state.ctx.modus === 'begeleid') {
+      if (BOOT.scanId) { laadScan(BOOT.scanId); return; }
+      ga('home');
+    } else {
+      ga('start');
+    }
+  }
+
+  function laadScan(id) {
+    $('#app').innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+    api('api_scanLaden', id).then(function (scan) {
+      state.scan = Object.assign(nieuweScan(), scan);
+      state.taal = scan.taal || state.taal;
+      state.ui.stelling = 0;
+      ga(Object.keys(scan.antwoorden || {}).length ? 'resultaten' : 'start');
+    }).catch(function (err) {
+      toast(t('fout.algemeen', { fout: err.message }));
+      ga('home');
+    });
+  }
+
+  return {
+    state: state, content: content, t: t, L: L, esc: esc, $: $, $$: $$,
+    fScore: fScore, fNum: fNum, fEur: fEur, datum: datum, isNum: isNum, parseNum: parseNum, deepGet: deepGet,
+    logo: logo, nshape: nshape, api: api, analyse: analyse,
+    nieuweScan: nieuweScan, gewijzigd: gewijzigd, serverBewaren: serverBewaren,
+    lokaalLezen: lokaalLezen, lokaalWissen: lokaalWissen, laadScan: laadScan,
+    ga: ga, volgende: volgende, vorige: vorige, render: render, renderTopbar: renderTopbar, stappen: stappen,
+    op: op, toast: toast, confetti: confetti, start: start, debounce: debounce
+  };
+})();
+</script>

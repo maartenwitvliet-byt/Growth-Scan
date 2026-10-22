@@ -413,7 +413,8 @@ var GSCalc = (function () {
     var maxEur = 0;
     Object.keys(eur).forEach(function (id) { if (eur[id] > maxEur) maxEur = eur[id]; });
 
-    var items = [];
+    // Eerst per stelling, daarna samengevoegd per Nmbrs-functionaliteit: één punt per oplossing.
+    var perFunctie = {};
     Object.keys(scoreResult.stelling).forEach(function (id) {
       var s = content.stellingById[id];
       var score = scoreResult.stelling[id];
@@ -422,32 +423,74 @@ var GSCalc = (function () {
       var gapNorm = doel > 1 ? clamp((doel - score) / (doel - 1), 0, 1) : 0;
       var eurNorm = maxEur > 0 && isNum(eur[id]) ? eur[id] / maxEur : gapNorm;
       var impact = 0.6 * gapNorm + 0.4 * eurNorm;
-      var f = functies[s.functie] || {};
-      var inspanning = f.inspanning || 'midden';
-      var jitterX = (hash01(id + 'x') - 0.5) * 0.14;
-      var jitterY = (hash01(id + 'y') - 0.5) * 0.06;
-      var x = clamp((INSPANNING_X[inspanning] || 0.45) + jitterX, 0.06, 0.94);
-      var y = clamp(1 - (0.06 + impact * 0.88) + jitterY, 0.06, 0.94);
-      var h = handmatig[id];
-      if (h && isNum(h.x) && isNum(h.y)) { x = clamp(h.x, 0.02, 0.98); y = clamp(h.y, 0.02, 0.98); }
-      items.push({ id: id, functie: s.functie, domein: s.domein, score: score, impact: impact, euroJaar: eur[id] || 0, inspanning: inspanning, x: x, y: y, handmatig: !!(h && isNum(h.x)), kwadrant: kwadrant(x, y) });
+      var f = perFunctie[s.functie] = perFunctie[s.functie] || { functie: s.functie, stellingen: [], impacts: [], euroJaar: 0, minScore: 5, domeinen: {} };
+      f.stellingen.push(id);
+      f.impacts.push(impact);
+      f.euroJaar += eur[id] || 0;
+      f.minScore = Math.min(f.minScore, score);
+      f.domeinen[s.domein] = true;
+    });
+
+    var items = Object.keys(perFunctie).map(function (k) {
+      var f = perFunctie[k];
+      var max = Math.max.apply(null, f.impacts);
+      var som = f.impacts.reduce(function (a, b) { return a + b; }, 0);
+      // De zwaarste stelling telt volledig, elke extra stelling geeft een kleine bonus.
+      var impact = clamp(max + 0.15 * (som - max), 0, 1);
+      var inspanning = (functies[k] || {}).inspanning || 'midden';
+      return {
+        id: k, functie: k, stellingen: f.stellingen, minScore: f.minScore, domeinen: Object.keys(f.domeinen),
+        impact: impact, euroJaar: f.euroJaar, inspanning: inspanning,
+        x: clamp((INSPANNING_X[inspanning] || 0.45) + (hash01(k + 'x') - 0.5) * 0.14, 0.12, 0.88),
+        y: clamp(1 - (0.06 + impact * 0.88), 0.06, 0.94)
+      };
     });
     items.sort(function (a, b) { return b.impact - a.impact; });
+
+    // Automatische punten uit elkaar schuiven (binnen hun kwadrant); handmatige posities winnen.
+    var geplaatst = [];
+    items.forEach(function (it) {
+      var h = handmatig[it.functie];
+      if (h && isNum(h.x) && isNum(h.y)) {
+        it.x = clamp(h.x, 0.02, 0.98); it.y = clamp(h.y, 0.02, 0.98); it.handmatig = true;
+      } else {
+        var p = vrijePlek(it.x, it.y, geplaatst);
+        it.x = p[0]; it.y = p[1]; it.handmatig = false;
+      }
+      geplaatst.push([it.x, it.y]);
+      it.kwadrant = kwadrant(it.x, it.y);
+    });
     return items;
   }
 
-  // Top-kansen per functionaliteit ("Waar zit voor jou de meeste winst").
+  function vrijePlek(x, y, bezet) {
+    var dx = 0.19, dy = 0.065;
+    function vrij(px, py) { return bezet.every(function (b) { return Math.abs(b[0] - px) >= dx || Math.abs(b[1] - py) >= dy; }); }
+    if (vrij(x, y)) return [x, y];
+    var yMin = y < 0.5 ? 0.06 : 0.54, yMax = y < 0.5 ? 0.46 : 0.94;
+    // Zoekraster: de dichtstbijzijnde vrije plek in hetzelfde kwadrant. Een punt staat in het
+    // midden van een pil van circa 20% breed, vandaar de marge aan de randen. Is het kwadrant
+    // vol, dan schuift het punt horizontaal op (de impact blijft gelijk).
+    var bereiken = [x < 0.5 ? [0.12, 0.38] : [0.62, 0.88], [0.12, 0.88]];
+    for (var b = 0; b < bereiken.length; b++) {
+      var beste = null, besteAfstand = Infinity;
+      for (var px = bereiken[b][0]; px <= bereiken[b][1] + 1e-9; px += 0.01) {
+        for (var py = yMin; py <= yMax + 1e-9; py += 0.01) {
+          if (!vrij(px, py)) continue;
+          var d = Math.pow((px - x) / 2, 2) + Math.pow(py - y, 2);
+          if (d < besteAfstand) { besteAfstand = d; beste = [px, py]; }
+        }
+      }
+      if (beste) return beste;
+    }
+    return [x, y];
+  }
+
+  // Top-kansen ("Waar zit voor jou de meeste winst"): functionaliteiten op impact, quick wins voorop.
   function topKansen(items, aantal) {
-    var perFunctie = {};
-    items.forEach(function (it) {
-      var f = perFunctie[it.functie] = perFunctie[it.functie] || { functie: it.functie, score: 0, stellingen: [], euroJaar: 0, kwadranten: {} };
-      f.score += it.impact * (KWADRANT_GEWICHT[it.kwadrant] || 0);
-      f.euroJaar += it.euroJaar;
-      f.stellingen.push(it.id);
-      f.kwadranten[it.kwadrant] = (f.kwadranten[it.kwadrant] || 0) + 1;
-    });
-    return Object.keys(perFunctie).map(function (k) { return perFunctie[k]; })
-      .filter(function (f) { return f.score > 0; })
+    return items.map(function (it) {
+      return { functie: it.functie, stellingen: it.stellingen, euroJaar: it.euroJaar, kwadrant: it.kwadrant, score: it.impact * (KWADRANT_GEWICHT[it.kwadrant] || 0) };
+    }).filter(function (f) { return f.score > 0; })
       .sort(function (a, b) { return b.score - a.score; })
       .slice(0, aantal || 5);
   }

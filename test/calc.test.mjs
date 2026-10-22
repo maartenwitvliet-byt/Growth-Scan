@@ -104,17 +104,35 @@ test('voorwaarden (toonAls) verbergen alleen bij een beantwoorde, niet-passende 
   assert.equal(GSCalc.isZichtbaar({ toonAls: 'onzin' }, { H16: 1 }), true);
 });
 
-test('prioriteren: alleen stellingen met score <= 3, handmatige positie wint', () => {
+test('prioriteren: één punt per functionaliteit, alleen scores <= 3, handmatige positie wint', () => {
   const scan = { domeinen: ['payroll', 'hr'], antwoorden: voorbeeld.scores, kerncijfers: { fte: 3.5, strokenPerMaand: 1200 }, overigeKosten: { hr: { urenPerWeek: 8, uurtarief: 55 } } };
   const a = GSCalc.analyse(content, scan);
   assert.ok(a.matrix.length > 0);
-  assert.ok(a.matrix.every((m) => m.score <= 3));
+  assert.equal(new Set(a.matrix.map((m) => m.functie)).size, a.matrix.length);
+  for (const m of a.matrix) {
+    assert.ok(m.minScore <= 3);
+    for (const id of m.stellingen) assert.ok(a.scores.stelling[id] <= 3 && content.stellingById[id].functie === m.functie);
+  }
   assert.ok(a.kansen.length <= 5 && a.kansen.length > 0);
-  const id = a.matrix[0].id;
-  const b = GSCalc.analyse(content, { ...scan, matrix: { [id]: { x: 0.9, y: 0.9 } } });
-  const m = b.matrix.find((x) => x.id === id);
+  const f = a.matrix[0].functie;
+  const b = GSCalc.analyse(content, { ...scan, matrix: { [f]: { x: 0.9, y: 0.9 } } });
+  const m = b.matrix.find((x) => x.functie === f);
   assert.equal(m.kwadrant, 'heroverwegen');
   assert.equal(m.handmatig, true);
+});
+
+test('prioriteren: de 12 belangrijkste punten (standaard op de matrix) overlappen niet', () => {
+  const alles1 = Object.fromEntries(content.stellingen.map((s) => [s.id, 1]));
+  const gevallen = [alles1, voorbeeld.scores];
+  for (const antwoorden of gevallen) {
+    const a = GSCalc.analyse(content, { domeinen: ['payroll', 'hr', 'tech', 'zelf'], antwoorden, kerncijfers: {} });
+    const top = a.matrix.slice(0, 12);
+    let botsingen = 0;
+    for (let i = 0; i < top.length; i++) for (let j = 0; j < i; j++) {
+      if (Math.abs(top[i].x - top[j].x) < 0.19 - 1e-9 && Math.abs(top[i].y - top[j].y) < 0.065 - 1e-9) botsingen++;
+    }
+    assert.equal(botsingen, 0, `${botsingen} botsingen in de top 12`);
+  }
 });
 
 test('content: 82 stellingen, elk met NL, EN, oplossing en bestaande functionaliteit', () => {

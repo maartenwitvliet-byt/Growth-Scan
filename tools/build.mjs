@@ -92,4 +92,9 @@ writeFileSync(
   '<script>\n// GEGENEREERD door tools/build.mjs uit Calc.js\n' + read('apps-script/Calc.js') + '\n</script>\n',
 );
 
+writeFileSync(
+  join(root, 'apps-script/TekstenClient.html'),
+  '<script>\n// GEGENEREERD door tools/build.mjs uit Teksten.js\n' + read('apps-script/Teksten.js') + '\n</script>\n',
+);
+
 console.log(`Seed: ${stellingen.length} stellingen, ${seed.responses.length} kantoren, ${Object.keys(seed.functies).length} functionaliteiten`);

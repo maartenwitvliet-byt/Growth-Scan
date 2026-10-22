@@ -1,0 +1,225 @@
+<script>
+/* Groei Scan · grafieken als SVG (app, presentatie, PDF) en als PNG (Google Slides). */
+var Charts = (function () {
+  'use strict';
+  var KLEUR = { jij: '#FE6E63', gem: '#6B5DFF', beste: '#010149', grid: '#DCDAF5', tekst: '#3A3A55', zacht: '#5B5B74', jaar: ['#010149', '#FE6E63', '#6B5DFF'] };
+  var FONT = "Inter, 'Segoe UI', Arial, sans-serif";
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function f1(v, taal) { return (Math.round(v * 10) / 10).toFixed(1).replace('.', taal === 'en' ? '.' : ','); }
+  function svg(w, h, inner, extra) {
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '" font-family="' + FONT + '"' + (extra || '') + '>' + inner + '</svg>';
+  }
+  function tekstRegels(x, y, label, opts) {
+    // Labels met meer woorden breken op twee regels.
+    var woorden = String(label).split(' ');
+    var regels = [label];
+    if (label.length > 16 && woorden.length > 1) {
+      var mid = Math.ceil(woorden.length / 2);
+      regels = [woorden.slice(0, mid).join(' '), woorden.slice(mid).join(' ')];
+    }
+    var lh = opts.size * 1.2;
+    var y0 = y - (regels.length - 1) * lh / 2;
+    return regels.map(function (r, i) {
+      return '<text x="' + x.toFixed(1) + '" y="' + (y0 + i * lh).toFixed(1) + '" font-size="' + opts.size + '" font-weight="' + (opts.weight || 600) + '" fill="' + (opts.color || KLEUR.tekst) + '" text-anchor="' + opts.anchor + '" dominant-baseline="middle">' + esc(r) + '</text>';
+    }).join('');
+  }
+
+  /**
+   * Radar met ringen 1 t/m 5. series: [{ values: [..], color, width, fill }]
+   * Bij minder dan 3 assen valt hij terug op liggende balken.
+   */
+  function radar(opts) {
+    var axes = opts.axes, n = axes.length;
+    if (n < 3) return staven(opts);
+    var w = opts.w || 520, h = opts.h || 460, max = opts.max || 5;
+    var labelSize = opts.labelSize || 15;
+    var cx = w / 2, cy = h / 2 + (opts.dy || 6);
+    // Opzij meer ruimte dan boven/onder: daar staan de langste labels.
+    var langste = 0;
+    axes.forEach(function (label, i) {
+      var a = -Math.PI / 2 + (2 * Math.PI * i) / n;
+      if (Math.abs(Math.cos(a)) < 0.3) return;
+      var woorden = String(label).split(' '), regel = String(label).length;
+      if (regel > 16 && woorden.length > 1) {
+        var mid = Math.ceil(woorden.length / 2);
+        regel = Math.max(woorden.slice(0, mid).join(' ').length, woorden.slice(mid).join(' ').length);
+      }
+      langste = Math.max(langste, regel);
+    });
+    var padX = opts.padX || Math.min(w * 0.34, Math.max(50, langste * labelSize * 0.56 + 34));
+    var padY = opts.pad || 70;
+    var r = Math.min(w / 2 - padX, h / 2 - padY);
+    function pt(i, v) {
+      var a = -Math.PI / 2 + (2 * Math.PI * i) / n;
+      var rr = (Math.max(0, Math.min(max, v)) / max) * r;
+      return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr];
+    }
+    var out = '';
+    for (var ring = 1; ring <= max; ring++) {
+      out += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (r * ring / max).toFixed(1) + '" fill="none" stroke="' + KLEUR.grid + '" stroke-width="1"/>';
+      if (opts.ticks !== false) out += '<text x="' + (cx + 4) + '" y="' + (cy - r * ring / max + 4).toFixed(1) + '" font-size="11" fill="' + KLEUR.zacht + '">' + ring + '</text>';
+    }
+    for (var i = 0; i < n; i++) {
+      var p = pt(i, max);
+      out += '<line x1="' + cx + '" y1="' + cy + '" x2="' + p[0].toFixed(1) + '" y2="' + p[1].toFixed(1) + '" stroke="' + KLEUR.grid + '" stroke-width="1"/>';
+    }
+    (opts.series || []).forEach(function (s) {
+      var pts = s.values.map(function (v, i) { return pt(i, typeof v === 'number' ? v : 0); });
+      var d = pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ') + ' Z';
+      out += '<path d="' + d + '" fill="' + (s.fill ? s.color : 'none') + '" fill-opacity="' + (s.fill ? (s.fillOpacity || .14) : 0) + '" stroke="' + s.color + '" stroke-width="' + (s.width || 5) + '" stroke-linejoin="round"' + (opts.animate ? ' class="rd-line"' : '') + '/>';
+      pts.forEach(function (p, i) {
+        if (typeof s.values[i] !== 'number') return;
+        out += '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="' + (s.dot || 7) + '" fill="' + s.color + '"/>';
+      });
+    });
+    axes.forEach(function (label, i) {
+      var a = -Math.PI / 2 + (2 * Math.PI * i) / n;
+      var lx = cx + Math.cos(a) * (r + 22), ly = cy + Math.sin(a) * (r + 22);
+      var anchor = Math.abs(Math.cos(a)) < 0.3 ? 'middle' : (Math.cos(a) > 0 ? 'start' : 'end');
+      if (Math.abs(Math.cos(a)) < 0.3) ly += Math.sin(a) > 0 ? 12 : -12;
+      out += tekstRegels(lx, ly, label, { size: labelSize, anchor: anchor, color: opts.labelColor || '#00001D' });
+    });
+    return svg(w, h, out, ' role="img" aria-label="' + esc(opts.titel || 'Radar') + '"');
+  }
+
+  /** Liggende balken per as (terugval voor 1 of 2 domeinen). */
+  function staven(opts) {
+    var w = opts.w || 520, rijH = 26, labelW = 170;
+    var h = 30 + opts.axes.length * ((opts.series || []).length * rijH + 26);
+    var out = '', y = 20, bw = w - labelW - 50;
+    opts.axes.forEach(function (label, i) {
+      out += '<text x="0" y="' + (y + 10) + '" font-size="15" font-weight="700" fill="#00001D">' + esc(label) + '</text>';
+      y += 20;
+      (opts.series || []).forEach(function (s) {
+        var v = s.values[i];
+        var bl = typeof v === 'number' ? (v / 5) * bw : 0;
+        out += '<rect x="' + labelW + '" y="' + y + '" width="' + bw + '" height="14" rx="7" fill="#F4F3FF"/>';
+        out += '<rect x="' + labelW + '" y="' + y + '" width="' + Math.max(0, bl).toFixed(1) + '" height="14" rx="7" fill="' + s.color + '"/>';
+        out += '<text x="' + (labelW - 10) + '" y="' + (y + 11) + '" font-size="12" text-anchor="end" fill="' + KLEUR.zacht + '">' + esc(s.label || '') + '</text>';
+        out += '<text x="' + (labelW + bw + 8) + '" y="' + (y + 12) + '" font-size="13" font-weight="700" fill="#00001D">' + (typeof v === 'number' ? f1(v, opts.taal) : '–') + '</text>';
+        y += rijH;
+      });
+      y += 6;
+    });
+    return svg(w, Math.max(h, y + 10), out);
+  }
+
+  function schaal(max) {
+    var ruw = max / 4;
+    var mag = Math.pow(10, Math.floor(Math.log10(ruw || 1)));
+    var stap = [1, 2, 2.5, 5, 10].map(function (m) { return m * mag; }).filter(function (s) { return s >= ruw; })[0] || mag * 10;
+    return { stap: stap, top: Math.ceil(max / stap) * stap || stap };
+  }
+
+  /** Staande staven met waarde in de staaf (benchmark stroken per FTE). */
+  function kolommen(opts) {
+    var w = opts.w || 560, h = opts.h || 420, padL = 56, padB = 40, padT = 16;
+    var vals = opts.items.map(function (i) { return i.value || 0; });
+    var sc = schaal(Math.max.apply(null, vals.concat([1])));
+    var plotH = h - padB - padT, plotW = w - padL - 10;
+    var out = '';
+    for (var v = 0; v <= sc.top + 1e-9; v += sc.stap) {
+      var y = padT + plotH - (v / sc.top) * plotH;
+      out += '<line x1="' + padL + '" x2="' + (w - 10) + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="' + KLEUR.grid + '"/>';
+      out += '<text x="' + (padL - 8) + '" y="' + (y + 4).toFixed(1) + '" font-size="12" text-anchor="end" fill="' + KLEUR.zacht + '">' + fmt(v, opts) + '</text>';
+    }
+    var slot = plotW / opts.items.length, bw = Math.min(140, slot * 0.66);
+    opts.items.forEach(function (it, i) {
+      var bh = ((it.value || 0) / sc.top) * plotH;
+      var x = padL + slot * i + (slot - bw) / 2, y = padT + plotH - bh;
+      out += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(0, bh).toFixed(1) + '" fill="' + it.color + '"/>';
+      out += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (y + Math.min(bh / 2, bh - 14) + 6).toFixed(1) + '" font-size="16" font-weight="700" text-anchor="middle" fill="' + (it.ink || '#FFFFFF') + '">' + fmt(it.value, opts) + '</text>';
+      out += '<text x="' + (x + bw / 2).toFixed(1) + '" y="' + (h - 14) + '" font-size="12" text-anchor="middle" fill="' + KLEUR.tekst + '">' + esc(it.label) + '</text>';
+    });
+    out += '<line x1="' + padL + '" x2="' + (w - 10) + '" y1="' + (padT + plotH) + '" y2="' + (padT + plotH) + '" stroke="#00001D" stroke-width="1.5"/>';
+    return svg(w, h, out);
+  }
+
+  function fmt(v, opts) {
+    if (typeof v !== 'number') return '–';
+    var nl = opts.taal !== 'en';
+    var dec = opts.dec || 0;
+    var s = v.toFixed(dec).split('.');
+    s[0] = s[0].replace(/\B(?=(\d{3})+(?!\d))/g, nl ? '.' : ',');
+    var out = s.join(nl ? ',' : '.');
+    return (opts.eur ? '€ ' : '') + out;
+  }
+
+  /** Gegroepeerde staven: twee groepen (huidig, Nmbrs) x drie jaren. */
+  function groepen(opts) {
+    var w = opts.w || 600, h = opts.h || 420, padL = 70, padB = 30, padT = 16, legendW = 110;
+    var alle = [];
+    opts.groups.forEach(function (g) { alle = alle.concat(g.values); });
+    var sc = schaal(Math.max.apply(null, alle.concat([opts.min || 0.0001])));
+    var plotH = h - padB - padT, plotW = w - padL - legendW;
+    var out = '';
+    for (var v = 0; v <= sc.top + 1e-9; v += sc.stap) {
+      var y = padT + plotH - (v / sc.top) * plotH;
+      out += '<line x1="' + padL + '" x2="' + (padL + plotW) + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="' + KLEUR.grid + '"/>';
+      out += '<text x="' + (padL - 8) + '" y="' + (y + 4).toFixed(1) + '" font-size="12" text-anchor="end" fill="' + KLEUR.zacht + '">' + fmt(v, { taal: opts.taal, eur: opts.eur, dec: opts.axisDec || 0 }) + '</text>';
+    }
+    var slot = plotW / opts.groups.length, bw = Math.min(46, (slot * 0.7) / 3);
+    opts.groups.forEach(function (g, gi) {
+      var x0 = padL + slot * gi + (slot - bw * 3 - 8) / 2;
+      g.values.forEach(function (val, i) {
+        var bh = (val / sc.top) * plotH;
+        out += '<rect x="' + (x0 + i * (bw + 4)).toFixed(1) + '" y="' + (padT + plotH - bh).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(0, bh).toFixed(1) + '" fill="' + KLEUR.jaar[i] + '"/>';
+      });
+      if (g.label) out += '<text x="' + (x0 + (bw * 3 + 8) / 2).toFixed(1) + '" y="' + (h - 8) + '" font-size="12" text-anchor="middle" fill="' + KLEUR.tekst + '">' + esc(g.label) + '</text>';
+    });
+    out += '<line x1="' + padL + '" x2="' + (padL + plotW) + '" y1="' + (padT + plotH) + '" y2="' + (padT + plotH) + '" stroke="#00001D" stroke-width="1.5"/>';
+    (opts.legend || []).forEach(function (l, i) {
+      var ly = padT + 10 + i * 30;
+      out += '<rect x="' + (w - legendW + 16) + '" y="' + ly + '" width="18" height="18" rx="3" fill="' + KLEUR.jaar[i] + '"/>';
+      out += '<text x="' + (w - legendW + 42) + '" y="' + (ly + 14) + '" font-size="15" fill="#00001D">' + esc(l) + '</text>';
+    });
+    return svg(w, h, out);
+  }
+
+  /** Drie lijnen met vlak over drie jaar (kosten huidig, kosten nieuw, voordeel). */
+  function lijnen(opts) {
+    var w = opts.w || 640, h = opts.h || 300, padL = 90, padB = 34, padT = 14, padR = 20;
+    var alle = [];
+    opts.series.forEach(function (s) { alle = alle.concat(s.values); });
+    var sc = schaal(Math.max.apply(null, alle.concat([1])));
+    var plotH = h - padB - padT, plotW = w - padL - padR;
+    var out = '';
+    for (var v = 0; v <= sc.top + 1e-9; v += sc.stap) {
+      var gy = padT + plotH - (v / sc.top) * plotH;
+      out += '<line x1="' + padL + '" x2="' + (w - padR) + '" y1="' + gy.toFixed(1) + '" y2="' + gy.toFixed(1) + '" stroke="' + KLEUR.grid + '"/>';
+      out += '<text x="' + (padL - 8) + '" y="' + (gy + 4).toFixed(1) + '" font-size="12" text-anchor="end" fill="' + KLEUR.zacht + '">' + fmt(v, { taal: opts.taal, eur: true }) + '</text>';
+    }
+    function x(i) { return padL + (plotW * i) / (opts.labels.length - 1); }
+    function y(v) { return padT + plotH - (Math.max(0, v) / sc.top) * plotH; }
+    opts.series.forEach(function (s) {
+      var line = s.values.map(function (v, i) { return (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1); }).join(' ');
+      out += '<path d="' + line + ' L' + x(s.values.length - 1).toFixed(1) + ' ' + (padT + plotH) + ' L' + x(0).toFixed(1) + ' ' + (padT + plotH) + ' Z" fill="' + s.color + '" fill-opacity=".16"/>';
+      out += '<path d="' + line + '" fill="none" stroke="' + s.color + '" stroke-width="4" stroke-linejoin="round"/>';
+      s.values.forEach(function (v, i) { out += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="6" fill="' + s.color + '"/>'; });
+    });
+    opts.labels.forEach(function (l, i) { out += '<text x="' + x(i).toFixed(1) + '" y="' + (h - 10) + '" font-size="13" text-anchor="middle" fill="' + KLEUR.tekst + '">' + esc(l) + '</text>'; });
+    return svg(w, h, out);
+  }
+
+  /** SVG naar PNG (data-URL) voor Google Slides. */
+  function naarPng(svgText, schaalFactor) {
+    return new Promise(function (resolve, reject) {
+      var m = svgText.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
+      var w = m ? parseFloat(m[1]) : 600, h = m ? parseFloat(m[2]) : 400, s = schaalFactor || 2;
+      var img = new Image();
+      img.onload = function () {
+        var c = document.createElement('canvas');
+        c.width = Math.round(w * s); c.height = Math.round(h * s);
+        var ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.onerror = function () { reject(new Error('Grafiek kon niet worden omgezet')); };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText);
+    });
+  }
+
+  return { KLEUR: KLEUR, radar: radar, staven: staven, kolommen: kolommen, groepen: groepen, lijnen: lijnen, naarPng: naarPng, fmt: fmt };
+})();
+</script>

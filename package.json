@@ -3,12 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "description": "Nmbrs Groei Scan voor accountants- en administratiekantoren (Google Apps Script)",
-  "type": "module",
   "scripts": {
     "extract": "python3 tools/extract_excel.py",
     "build": "node tools/build.mjs",
     "test": "node tools/build.mjs && node --test test/*.test.mjs",
     "dev": "node tools/build.mjs && node dev/server.mjs",
     "push": "node tools/build.mjs && clasp push"
+  },
+  "devDependencies": {
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.1"
   }
 }

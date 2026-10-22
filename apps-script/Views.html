@@ -1,0 +1,701 @@
+<script>
+/* Groei Scan · schermen. Elke view geeft HTML terug; Views.na[view] koppelt daarna gedrag. */
+var Views = (function () {
+  'use strict';
+  var t = GS.t, L = GS.L, esc = GS.esc, C = GS.content, S = GS.state;
+  var K = Charts.KLEUR;
+  var na = {};
+
+  function ms(icon) { return '<span class="ms" aria-hidden="true">' + icon + '</span>'; }
+  function domein(id) { return C.domeinById[id]; }
+  function gekozenDomeinen() { return C.domeinen.filter(function (d) { return S.scan.domeinen.indexOf(d.id) >= 0; }); }
+  function bm() { return S.benchmark || { n: 0, stelling: {}, subthema: {}, domein: {}, totaal: {}, strokenPerFte: {} }; }
+  function navRow(opts) {
+    opts = opts || {};
+    var s = GS.stappen(), i = s.indexOf(S.view);
+    var volg = i < s.length - 1 ? s[i + 1] : null;
+    return '<div class="nav-row">' +
+      (i > 0 ? '<button type="button" class="btn btn-tertiary" data-act="vorige">← ' + esc(t('knop.vorige')) + '</button>' : '<span></span>') +
+      (volg && !opts.geenVolgende ? '<button type="button" class="btn btn-primary btn-lg" data-act="' + (opts.act || 'volgende') + '"' + (opts.disabled ? ' disabled' : '') + '>' + esc(opts.label || t('stap.' + volg)) + ' <span class="arrow">→</span></button>' : '') +
+      '</div>';
+  }
+  function zichtbareStellingen() {
+    return GSCalc.stellingenVan(C, S.scan.domeinen).filter(function (s) { return GSCalc.isZichtbaar(s, S.scan.antwoorden); });
+  }
+  function begroeting() {
+    var u = new Date().getHours();
+    var naam = ((S.ctx.gebruiker || {}).naam || '').split(' ')[0];
+    return t(u < 12 ? 'home.welkom' : u < 18 ? 'home.welkomMiddag' : 'home.welkomAvond', { naam: naam });
+  }
+
+  // ==================================================================
+  // HOME (consultant)
+  // ==================================================================
+  function home() {
+    return '<div class="wrap">' +
+      '<div class="home-hero"><div class="stack"><span class="eyebrow">' + esc(t('app.naam')) + '</span><h1 class="display d-l">' + esc(begroeting()) + '</h1><p class="lede">' + esc(t('home.intro')) + '</p></div>' +
+      '<button type="button" class="btn btn-primary btn-lg" data-act="nieuweScan">' + ms('add') + esc(t('knop.nieuw')) + '</button></div>' +
+      '<div class="kpi-row" id="homeKpis">' +
+        kpi(GS.fNum(bm().n), t('home.benchmark', { n: '' }).replace(':', '').trim(), true) +
+        kpi('…', t('home.mijnScans')) + kpi('…', t('home.afgerond')) + kpi('…', t('bc.totaal')) +
+      '</div>' +
+      '<div class="page-head"><div class="row"><h2 class="sub-l">' + esc(S.ctx.gebruiker && S.ctx.gebruiker.rol === 'beheerder' ? t('home.alleScans') : t('home.mijnScans')) + '</h2>' +
+      '<input class="input" style="max-width:280px" id="scanZoek" type="search" placeholder="' + esc(t('home.zoek')) + '"></div></div>' +
+      '<div class="table-wrap"><table class="scan-table"><thead><tr><th>' + esc(t('start.kantoor')) + '</th><th>Status</th><th>' + esc(t('res.totaal')) + '</th><th>' + esc(t('bc.totaal')) + '</th><th>' + esc(t('stap.rapport')) + '</th><th></th></tr></thead>' +
+      '<tbody id="scanRijen"><tr><td colspan="6" class="muted">' + esc(t('home.laden')) + '</td></tr></tbody></table></div></div>';
+  }
+  function kpi(v, l, accent) { return '<div class="kpi' + (accent ? ' accent' : '') + '"><span class="v num">' + esc(v) + '</span><span class="l">' + esc(l) + '</span></div>'; }
+
+  na.home = function () {
+    GS.api('api_mijnScans').then(function (rijen) {
+      Views._scans = rijen;
+      tekenScans('');
+      var afgerond = rijen.filter(function (r) { return r.status === 'afgerond'; }).length;
+      var voordeel = rijen.reduce(function (a, r) { return a + (Number(r.voordeel) || 0); }, 0);
+      var k = GS.$$('#homeKpis .kpi .v');
+      if (k[1]) k[1].textContent = GS.fNum(rijen.length);
+      if (k[2]) k[2].textContent = GS.fNum(afgerond);
+      if (k[3]) k[3].textContent = GS.fEur(voordeel);
+    }).catch(function (err) {
+      GS.$('#scanRijen').innerHTML = '<tr><td colspan="6">' + esc(t('fout.algemeen', { fout: err.message })) + '</td></tr>';
+    });
+    var zoek = GS.$('#scanZoek');
+    if (zoek) zoek.addEventListener('input', function () { tekenScans(zoek.value.toLowerCase()); });
+  };
+  function tekenScans(filter) {
+    var rijen = (Views._scans || []).filter(function (r) { return !filter || String(r.kantoor).toLowerCase().indexOf(filter) >= 0; });
+    var tb = GS.$('#scanRijen');
+    if (!tb) return;
+    if (!rijen.length) { tb.innerHTML = '<tr><td colspan="6" class="muted">' + esc(t('home.geenScans')) + '</td></tr>'; return; }
+    tb.innerHTML = rijen.map(function (r) {
+      return '<tr data-act="openScan" data-id="' + esc(r.id) + '">' +
+        '<td><b>' + esc(r.kantoor || '–') + '</b><div class="muted">' + esc(r.gewijzigd ? GS.datum(r.gewijzigd) : '') + (r.consultant && S.ctx.gebruiker.rol === 'beheerder' ? ' · ' + esc(r.consultant) : '') + '</div></td>' +
+        '<td><span class="chip ' + (r.status === 'afgerond' ? 'ok' : '') + '">' + esc(r.status === 'afgerond' ? t('home.afgerond') : t('home.concept')) + '</span></td>' +
+        '<td class="num">' + esc(r.score !== '' ? GS.fScore(Number(r.score)) : '–') + '</td>' +
+        '<td class="num">' + esc(r.voordeel !== '' ? GS.fEur(Number(r.voordeel)) : '–') + '</td>' +
+        '<td>' + (r.slidesUrl ? '<a href="' + esc(r.slidesUrl) + '" target="_blank" rel="noopener" class="btn btn-tertiary btn-sm">Slides</a> ' : '') + (r.pdfUrl ? '<a href="' + esc(r.pdfUrl) + '" target="_blank" rel="noopener" class="btn btn-tertiary btn-sm">PDF</a>' : '') + '</td>' +
+        '<td style="text-align:right">' + ms('chevron_right') + '</td></tr>';
+    }).join('');
+  }
+  GS.op('nieuweScan', function () { S.scan = GS.nieuweScan(); S.ui.stelling = 0; GS.ga('start'); });
+  GS.op('openScan', function (el, e) { if (e.target.closest('a')) return; GS.laadScan(el.getAttribute('data-id')); });
+
+  // ==================================================================
+  // START
+  // ==================================================================
+  function domeinKeuze() {
+    return '<div class="domain-pick" role="group" aria-label="' + esc(t('start.domeinen')) + '">' + C.domeinen.map(function (d) {
+      var n = GSCalc.stellingenVan(C, [d.id]).length;
+      var aan = S.scan.domeinen.indexOf(d.id) >= 0;
+      return '<button type="button" class="domain-card" data-act="domein" data-id="' + d.id + '" aria-pressed="' + aan + '">' +
+        '<span class="check">' + ms('check') + '</span><span class="dot" style="background:' + esc(d.kleur) + '"></span>' +
+        '<b>' + esc(L(d)) + '</b><small>' + esc(t('start.stellingen', { n: n })) + ' · ' + esc(t('start.duur', { min: Math.max(2, Math.round(n * 0.3)) })) + '</small></button>';
+    }).join('') + '</div>';
+  }
+  GS.op('domein', function (el) {
+    var id = el.getAttribute('data-id');
+    var d = S.scan.domeinen;
+    var i = d.indexOf(id);
+    if (i >= 0) { if (d.length > 1) d.splice(i, 1); else { GS.toast(t('start.domeinenSub')); return; } }
+    else d.push(id);
+    S.scan.domeinen = C.domeinen.map(function (x) { return x.id; }).filter(function (x) { return d.indexOf(x) >= 0; });
+    el.setAttribute('aria-pressed', String(i < 0));
+    S.ui.stelling = 0;
+    GS.gewijzigd();
+  });
+
+  function start() {
+    if (S.ctx.modus === 'begeleid') return startBegeleid();
+    var concept = GS.lokaalLezen();
+    var hervat = concept && concept.scan && Object.keys(concept.scan.antwoorden || {}).length && (!S.scan || !Object.keys(S.scan.antwoorden).length);
+    return '<section class="start">' +
+      '<div class="start-left">' +
+        '<div style="height:68px">' + GS.logo('primary') + '</div>' +
+        '<span class="eyebrow">' + esc(t('s.cover.label')) + '</span>' +
+        '<h1 class="display d-xl">' + esc(t('start.titel')) + '</h1>' +
+        '<p class="lede">' + esc(t('start.campagneIntro', { n: bm().n })) + '</p>' +
+        (hervat ? '<div class="resume">' + ms('history') + '<div><b>' + esc(t('start.hervatten', { klant: concept.scan.kantoor.naam || '…' })) + '</b></div><button type="button" class="btn btn-dark btn-sm" data-act="hervat">' + esc(t('start.hervattenKnop')) + '</button><button type="button" class="btn btn-tertiary btn-sm" data-act="opnieuw">' + esc(t('start.nieuwKnop')) + '</button></div>' : '') +
+        '<div class="field"><label for="kNaam">' + esc(t('start.kantoorNaamCampagne')) + '</label><input class="input" id="kNaam" data-bind="kantoor.naam" value="' + esc(S.scan.kantoor.naam) + '" autocomplete="organization"></div>' +
+        '<div class="stack" style="gap:10px"><span class="sub-m">' + esc(t('start.domeinen')) + '</span>' + domeinKeuze() + '</div>' +
+        '<div><button type="button" class="btn btn-primary btn-lg" data-act="startScan">' + esc(t('knop.start')) + ' <span class="arrow">→</span></button></div>' +
+      '</div>' +
+      '<div class="start-right">' + GS.nshape('width:180px;height:180px;right:-40px;top:-40px') + GS.nshape('width:60px;height:60px;left:40px;bottom:60px', '#E7E5FF') +
+        '<span class="sub-l" style="position:relative;z-index:1;color:#00001D">' + esc(t('start.reis.titel')) + '</span>' +
+        '<ol class="journey">' + [1, 2, 3, 4].map(function (i) {
+          return '<li><span class="n">' + i + '</span><span><b>' + esc(t('start.reis.' + i)) + '</b><span>' + esc(t('start.reis.' + i + 's')) + '</span></span></li>';
+        }).join('') + '</ol></div>' +
+    '</section>';
+  }
+  GS.op('hervat', function () {
+    var c = GS.lokaalLezen();
+    if (!c) return;
+    S.scan = Object.assign(GS.nieuweScan(), c.scan);
+    S.ui.stelling = (c.ui && c.ui.stelling) || 0;
+    GS.ga(c.view && c.view !== 'start' ? c.view : 'scan');
+    GS.toast(t('knop.verder'));
+  });
+  GS.op('opnieuw', function () { GS.lokaalWissen(); S.scan = GS.nieuweScan(); S.ui.stelling = 0; GS.render(); });
+  GS.op('startScan', function () { S.ui.stelling = 0; GS.ga('scan'); });
+
+  function startBegeleid() {
+    var k = S.scan.kantoor;
+    return '<div class="wrap wrap-narrow"><div class="page-head"><span class="eyebrow">' + esc(t('stap.start')) + '</span><h1 class="display d-m">' + esc(k.naam || t('knop.nieuw')) + '</h1></div>' +
+      '<div class="card stack">' +
+        '<div class="grid-form">' +
+          fld('kNaam', 'start.kantoorNaam', 'kantoor.naam', k.naam, 'organization') +
+          fld('kWeb', 'start.website', 'kantoor.website', k.website, 'url') +
+          fld('kCNaam', 'start.contactNaam', 'kantoor.contactNaam', k.contactNaam, 'name') +
+          fld('kCMail', 'start.contactEmail', 'kantoor.contactEmail', k.contactEmail, 'email') +
+          fld('kCTel', 'start.contactTelefoon', 'kantoor.contactTelefoon', k.contactTelefoon, 'tel') +
+        '</div>' +
+        '<div class="field"><span class="label">' + esc(t('start.hubspot')) + '</span>' +
+          '<div id="hsKoppeling">' + hubspotKoppeling() + '</div></div>' +
+      '</div>' +
+      '<div class="stack" style="margin-top:28px"><h2 class="sub-l">' + esc(t('start.domeinen')) + '</h2><p class="muted">' + esc(t('start.domeinenSub')) + '</p>' + domeinKeuze() + '</div>' +
+      navRow() + '</div>';
+  }
+  function fld(id, label, bind, waarde, auto) {
+    return '<div class="field"><label for="' + id + '">' + esc(t(label)) + '</label><input class="input" id="' + id + '" data-bind="' + bind + '" value="' + esc(waarde || '') + '" autocomplete="' + (auto || 'off') + '"></div>';
+  }
+  function hubspotKoppeling() {
+    var k = S.scan.kantoor;
+    if (k.hubspotCompanyId) return '<div class="resume">' + ms('link') + '<div>' + esc(t('start.hubspotGekoppeld', { naam: k.hubspotNaam || k.hubspotCompanyId })) + '</div><button type="button" class="btn btn-tertiary btn-sm" data-act="hsOntkoppel">' + esc(t('knop.annuleren')) + '</button></div>';
+    return '<div style="display:flex;gap:8px"><input class="input" id="hsZoek" placeholder="' + esc(t('start.hubspotZoek')) + '"><button type="button" class="btn btn-secondary" data-act="hsZoek">' + ms('search') + '</button></div><div id="hsResultaten" class="stack" style="gap:6px;margin-top:8px"></div>';
+  }
+  GS.op('hsZoek', function () {
+    var q = (GS.$('#hsZoek').value || GS.state.scan.kantoor.naam || '').trim();
+    var box = GS.$('#hsResultaten');
+    box.innerHTML = '<div class="spinner" style="width:24px;height:24px;border-width:3px"></div>';
+    GS.api('api_hubspotZoekBedrijf', q).then(function (r) {
+      box.innerHTML = r.length ? r.map(function (b) {
+        return '<button type="button" class="pk" style="text-align:left;border:1px solid var(--line)" data-act="hsKies" data-id="' + esc(b.id) + '" data-naam="' + esc(b.naam) + '"><span><b>' + esc(b.naam) + '</b> <span class="muted">' + esc([b.domein, b.plaats].filter(Boolean).join(' · ')) + '</span></span><span></span><span>' + ms('add_link') + '</span></button>';
+      }).join('') : '<p class="muted">' + esc(t('start.hubspotGeen')) + '</p>';
+    }).catch(function (err) { box.innerHTML = '<p class="muted">' + esc(err.message) + '</p>'; });
+  });
+  GS.op('hsKies', function (el) {
+    S.scan.kantoor.hubspotCompanyId = el.getAttribute('data-id');
+    S.scan.kantoor.hubspotNaam = el.getAttribute('data-naam');
+    if (!S.scan.kantoor.naam) S.scan.kantoor.naam = el.getAttribute('data-naam');
+    GS.gewijzigd(); GS.render();
+  });
+  GS.op('hsOntkoppel', function () { S.scan.kantoor.hubspotCompanyId = ''; S.scan.kantoor.hubspotNaam = ''; GS.gewijzigd(); GS.$('#hsKoppeling').innerHTML = hubspotKoppeling(); });
+  na.start = function () {
+    var z = GS.$('#hsZoek');
+    if (z) z.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); GS.$('[data-act="hsZoek"]').click(); } });
+    var n = GS.$('#kNaam');
+    if (n && S.ctx.modus === 'campagne') n.addEventListener('keydown', function (e) { if (e.key === 'Enter') GS.$('[data-act="startScan"]').click(); });
+  };
+
+  // ==================================================================
+  // KERNCIJFERS (ook gebruikt in de business case)
+  // ==================================================================
+  function invoer(id, label, bind, opts) {
+    opts = opts || {};
+    var v = GS.deepGet(S.scan, bind);
+    var schaal = opts.schaal || 1;
+    var toon = GS.isNum(v) ? String(Math.round(v * schaal * 100) / 100).replace('.', S.taal === 'en' ? '.' : ',') : '';
+    return '<div class="field"><label for="' + id + '">' + esc(label) + '</label>' +
+      '<div class="input-group">' + (opts.voor ? '<span class="affix">' + esc(opts.voor) + '</span>' : '') +
+      '<input class="input num" id="' + id + '" inputmode="decimal" data-type="num" data-bind="' + bind + '"' + (schaal !== 1 ? ' data-schaal="' + schaal + '"' : '') + (opts.na ? ' data-na="' + opts.na + '"' : '') + ' value="' + esc(toon) + '" placeholder="' + esc(opts.placeholder || '') + '">' +
+      (opts.achter ? '<span class="affix">' + esc(opts.achter) + '</span>' : '') + '</div>' +
+      (opts.hint ? '<span class="hint">' + esc(opts.hint) + '</span>' : '') + '</div>';
+  }
+
+  function payrollInvoer(na) {
+    var ins = C.instellingen;
+    var nl = S.taal !== 'en';
+    function p(v, dec) { return GS.fNum(v, dec || 0); }
+    return '<div class="stack">' +
+      '<div class="grid-form">' +
+        invoer('kcFte', t('kc.fte'), 'kerncijfers.fte', { na: na, hint: t('kc.fteHulp'), placeholder: nl ? 'bijv. 3,5' : 'e.g. 3.5' }) +
+        invoer('kcStroken', t('kc.stroken'), 'kerncijfers.strokenPerMaand', { na: na, hint: t('kc.strokenHulp'), placeholder: nl ? 'bijv. 1.200' : 'e.g. 1,200' }) +
+      '</div>' +
+      '<details><summary>' + ms('tune') + esc(t('kc.geavanceerd')) + '</summary><div class="grid-form" style="margin-top:14px">' +
+        invoer('kcSal', t('kc.salaris'), 'kerncijfers.salarisMaand', { na: na, voor: '€', placeholder: p(ins.salarisAdministrateurMaand) }) +
+        invoer('kcFac', t('kc.factor'), 'kerncijfers.werkgeverslastenFactor', { na: na, schaal: 100, achter: '%', placeholder: p(ins.werkgeverslastenFactor * 100) }) +
+        invoer('kcAan', t('kc.aandeel'), 'kerncijfers.aandeelSalarisverwerking', { na: na, schaal: 100, achter: '%', placeholder: p(ins.aandeelSalarisverwerking * 100) }) +
+        invoer('kcSw', t('kc.software'), 'kerncijfers.softwarekostenPerStrook', { na: na, voor: '€', placeholder: p(ins.softwarekostenPerStrook, 2) }) +
+        invoer('kcConv', t('kc.conversie'), 'kerncijfers.conversieInvestering', { na: na, voor: '€', placeholder: p(ins.conversieInvestering) }) +
+      '</div></details></div>';
+  }
+  function overigInvoer(d, na) {
+    return '<div class="stack" style="gap:10px"><span class="sub-m">' + esc(t('kc.overig', { domein: L(d) })) + '</span><p class="muted">' + esc(t('kc.overigHulp')) + '</p>' +
+      '<div class="grid-form">' +
+        invoer('ov' + d.id + 'U', t('kc.uren'), 'overigeKosten.' + d.id + '.urenPerWeek', { na: na, achter: S.taal === 'en' ? 'hrs' : 'uur' }) +
+        invoer('ov' + d.id + 'T', t('kc.tarief'), 'overigeKosten.' + d.id + '.uurtarief', { na: na, voor: '€' }) +
+      '</div></div>';
+  }
+
+  function kerncijfers() {
+    var dom = gekozenDomeinen();
+    var heeftPayroll = S.scan.domeinen.indexOf('payroll') >= 0;
+    return '<div class="wrap"><div class="page-head"><span class="eyebrow">' + esc(t('stap.kerncijfers')) + '</span><h1 class="display d-m">' + esc(t('kc.titel')) + '</h1><p class="lede">' + esc(t('kc.sub')) + '</p></div>' +
+      '<div class="bc-layout" style="grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)"><div class="stack">' +
+        (heeftPayroll ? '<div class="card stack"><span class="sub-m">' + esc(t('kc.payroll')) + '</span>' + payrollInvoer('kcPreview') + '</div>' : '') +
+        dom.filter(function (d) { return d.id !== 'payroll'; }).map(function (d) { return '<div class="card">' + overigInvoer(d, 'kcPreview') + '</div>'; }).join('') +
+      '</div><div id="kcPreview">' + kcPreview() + '</div></div>' + navRow() + '</div>';
+  }
+  function kcPreview() {
+    var k = S.scan.kerncijfers;
+    if (!(k.fte > 0 && k.strokenPerMaand > 0)) return '<div class="card-tint stack"><span class="eyebrow">' + esc(t('bc.benchmark')) + '</span><p class="muted">' + esc(t('bc.payrollLeeg')) + '</p></div>';
+    var jij = k.strokenPerMaand / k.fte, gem = bm().strokenPerFte.gemiddeld, pot = Number(C.instellingen.potentieStrokenPerFte);
+    return '<div class="card stack"><span class="eyebrow">' + esc(t('bc.benchmark')) + '</span>' +
+      Charts.kolommen({ taal: S.taal, w: 420, h: 300, items: [
+        { label: t('bc.jijOrg'), value: jij, color: K.gem },
+        { label: t('bc.gemNL'), value: gem, color: K.jij, ink: '#00001D' },
+        { label: t('bc.potentie'), value: pot, color: K.beste }
+      ] }).replace('<svg', '<svg style="width:100%;height:auto"') +
+      '<p class="muted">' + esc(t('s.bm.p')) + '</p></div>';
+  }
+  GS.op('kcPreview', function () { var el = GS.$('#kcPreview'); if (el) el.innerHTML = kcPreview(); });
+
+  // ==================================================================
+  // SCAN
+  // ==================================================================
+  function scan() {
+    var lijst = zichtbareStellingen();
+    if (!lijst.length) return '<div class="wrap">' + esc(t('start.domeinenSub')) + '</div>';
+    if (S.ui.stelling >= lijst.length) S.ui.stelling = lijst.length - 1;
+    if (S.ui.stelling < 0) S.ui.stelling = 0;
+    var s = lijst[S.ui.stelling];
+    var antw = S.scan.antwoorden;
+    var beantwoord = lijst.filter(function (x) { return GS.isNum(antw[x.id]); }).length;
+    var huidigeScore = antw[s.id];
+    var sub = C.subthemas[s.subthema];
+    var inSub = lijst.filter(function (x) { return x.subthema === s.subthema; });
+    var posInSub = inSub.indexOf(s) + 1;
+    var b = bm().stelling[s.id] || {};
+    var klaar = beantwoord === lijst.length;
+    var begeleid = S.ctx.modus === 'begeleid';
+
+    var html = '<div class="wrap" style="padding-top:28px"><div class="scan-layout">';
+    // Navigatie
+    html += '<aside class="scan-nav" aria-label="' + esc(t('scan.lijst')) + '">' + gekozenDomeinen().map(function (d) {
+      return '<div class="sn-domain"><b><i style="background:' + esc(d.kleur) + '"></i>' + esc(L(d)) + '</b>' + d.subthemas.map(function (subId) {
+        var items = lijst.filter(function (x) { return x.subthema === subId; });
+        if (!items.length) return '';
+        var n = items.filter(function (x) { return GS.isNum(antw[x.id]); }).length;
+        var actief = subId === s.subthema;
+        return '<button type="button" class="sn-sub' + (actief ? ' active' : '') + (n === items.length ? ' done' : '') + '" data-act="naarStelling" data-i="' + lijst.indexOf(items[0]) + '"><span>' + esc(L(C.subthemas[subId])) + '</span><span class="cnt">' + n + '/' + items.length + '</span></button>' +
+          (actief ? '<div class="sn-dots">' + items.map(function (x) {
+            var i = lijst.indexOf(x);
+            return '<button type="button" title="' + esc(L(x)) + '" aria-label="' + esc(t('scan.stelling', { i: i + 1, n: lijst.length })) + '" class="' + (GS.isNum(antw[x.id]) ? 'answered' : '') + (i === S.ui.stelling ? ' current' : '') + '" data-act="naarStelling" data-i="' + i + '"></button>';
+          }).join('') + '</div>' : '');
+      }).join('') + '</div>';
+    }).join('') + '</aside>';
+
+    // Stelling
+    html += '<section class="scan-main">' +
+      '<div class="scan-progress" aria-hidden="true"><i style="width:' + (beantwoord / lijst.length * 100).toFixed(1) + '%"></i></div>' +
+      (klaar ? '<div class="done-banner"><span class="sub-m">' + esc(t('scan.klaar')) + '</span><button type="button" class="btn btn-primary" data-act="ga" data-view="resultaten">' + esc(t('scan.naarResultaten')) + ' <span class="arrow">→</span></button></div>' : '') +
+      '<article class="q-card enter" aria-live="polite">' +
+        '<div class="q-meta"><span class="eyebrow">' + esc(L(domein(s.domein))) + ' · ' + esc(L(sub)) + '</span><span class="muted">' + esc(t('scan.stelling', { i: posInSub, n: inSub.length })) + ' · ' + esc(t('scan.voortgang', { i: beantwoord, n: lijst.length })) + '</span></div>' +
+        '<p class="q-text">“' + esc(L(s)) + '”</p>' +
+        '<div class="scale" role="radiogroup" aria-label="Score">' + [1, 2, 3, 4, 5].map(function (v) {
+          var label = v === 1 ? t('scan.1') : v === 5 ? t('scan.5') : '';
+          return '<button type="button" role="radio" data-act="score" data-v="' + v + '" aria-checked="' + (huidigeScore === v) + '" aria-pressed="' + (huidigeScore === v) + '"><span class="n">' + v + '</span><small>' + esc(label || ' ') + '</small></button>';
+        }).join('') + '</div>' +
+        '<div class="q-tools"><span><span class="kbd">1</span>–<span class="kbd">5</span> · <span class="kbd">←</span> <span class="kbd">→</span> · ' + esc(t('scan.toetsen')) + '</span>' +
+          '<span style="display:flex;gap:14px;flex-wrap:wrap"><button type="button" class="btn btn-tertiary btn-sm" data-act="skip">' + esc(t('scan.overslaan')) + '</button>' +
+          '<button type="button" class="btn btn-tertiary btn-sm" data-act="toonOplossing">' + esc(S.ui.toonOplossing ? t('scan.verbergOplossing') : t('scan.toonOplossing')) + '</button></span></div>' +
+        (S.ui.toonOplossing ? '<div class="q-solution"><b>' + ms('lightbulb') + ' ' + esc(t('scan.oplossing')) + ' · ' + esc(L(C.functies[s.functie])) + '</b><span>' + esc(L(s, 'oplossing')) + '</span></div>' : '') +
+        (S.ui.toonBenchmark && b.n ? '<div class="q-bench">' + ms('groups') + '<span>' + esc(t('scan.gemiddeld', { v: GS.fScore(b.gem) })) + ' · ' + esc(t('home.benchmark', { n: b.n })) + '</span></div>' : '') +
+        (begeleid ? '<div class="q-note field"><label for="nt' + s.id + '">' + esc(t('scan.notitie')) + '</label><textarea class="input" id="nt' + s.id + '" data-bind="notities.' + s.id + '" placeholder="' + esc(t('scan.notitiePlaceholder')) + '">' + esc(S.scan.notities[s.id] || '') + '</textarea></div>' : '') +
+        '<div class="q-nav"><button type="button" class="btn btn-secondary btn-sm" data-act="vorigeStelling"' + (S.ui.stelling === 0 ? ' disabled' : '') + '>← ' + esc(t('knop.vorige')) + '</button>' +
+        '<button type="button" class="btn btn-secondary btn-sm" data-act="volgendeStelling"' + (S.ui.stelling >= lijst.length - 1 ? ' disabled' : '') + '>' + esc(t('knop.volgende')) + ' →</button></div>' +
+      '</article></section>';
+
+    // Zijkant: radar van het domein
+    var d = domein(s.domein);
+    var sc = GSCalc.scores(C, antw, [d.id]);
+    var subs = d.subthemas.filter(function (x) { return lijst.some(function (st) { return st.subthema === x; }); });
+    var series = [];
+    if (S.ui.toonBenchmark) {
+      series.push({ values: subs.map(function (x) { return (bm().subthema[x] || {}).beste; }), color: K.beste, width: 4, dot: 5 });
+      series.push({ values: subs.map(function (x) { return (bm().subthema[x] || {}).gem; }), color: K.gem, width: 4, dot: 5 });
+    }
+    series.push({ values: subs.map(function (x) { return sc.subthema[x]; }), color: K.jij, width: 5, dot: 6, fill: true });
+    html += '<aside class="scan-side"><div class="side-card"><span class="eyebrow">' + esc(t('scan.domeinVoortgang', { domein: L(d) })) + '</span>' +
+      Charts.radar({ axes: subs.map(function (x) { return L(C.subthemas[x]); }), series: series, w: 300, h: 280, pad: 62, labelSize: 11, taal: S.taal, ticks: false }).replace('<svg', '<svg style="width:100%;height:auto"') +
+      '<div class="legend"><span><i style="background:' + K.jij + '"></i>' + esc(t('res.jij')) + '</span>' + (S.ui.toonBenchmark ? '<span><i style="background:' + K.gem + '"></i>' + esc(t('res.gem')) + '</span><span><i style="background:' + K.beste + '"></i>' + esc(t('res.beste')) + '</span>' : '') + '</div>' +
+      '<label class="switch"><input type="checkbox" id="tglBench" data-act="toggleBench"' + (S.ui.toonBenchmark ? ' checked' : '') + '>' + esc(t('scan.benchmark')) + '</label></div>' +
+      '<div class="side-card"><span class="eyebrow">' + esc(L(d)) + '</span><span class="display d-s num">' + esc(GS.fScore(sc.domein[d.id])) + '</span><span class="muted">' + esc(S.ui.toonBenchmark ? t('scan.gemiddeld', { v: GS.fScore((bm().domein[d.id] || {}).gem) }) : '') + '</span></div></aside>';
+    html += '</div></div>';
+    return html;
+  }
+
+  function naarStelling(i) {
+    var lijst = zichtbareStellingen();
+    S.ui.stelling = Math.max(0, Math.min(lijst.length - 1, i));
+    GS.render();
+    var c = GS.$('.q-card');
+    if (c && window.innerWidth < 960) c.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  GS.op('naarStelling', function (el) { naarStelling(Number(el.getAttribute('data-i'))); });
+  GS.op('vorigeStelling', function () { naarStelling(S.ui.stelling - 1); });
+  GS.op('volgendeStelling', function () { naarStelling(S.ui.stelling + 1); });
+  GS.op('toonOplossing', function () { S.ui.toonOplossing = !S.ui.toonOplossing; GS.render(); });
+  GS.op('toggleBench', function (el) { S.ui.toonBenchmark = !S.ui.toonBenchmark; GS.render(); });
+  GS.op('skip', function () {
+    var lijst = zichtbareStellingen();
+    delete S.scan.antwoorden[lijst[S.ui.stelling].id];
+    GS.gewijzigd();
+    naarStelling(S.ui.stelling + 1);
+  });
+  var doorTimer = null;
+  function score(v, knop) {
+    var lijst = zichtbareStellingen();
+    var s = lijst[S.ui.stelling];
+    if (!s) return;
+    S.scan.antwoorden[s.id] = v;
+    GS.gewijzigd();
+    GS.$$('.scale button').forEach(function (b) {
+      var aan = Number(b.getAttribute('data-v')) === v;
+      b.setAttribute('aria-pressed', String(aan)); b.setAttribute('aria-checked', String(aan));
+      if (aan) { b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop'); }
+    });
+    clearTimeout(doorTimer);
+    doorTimer = setTimeout(function () {
+      var nieuw = zichtbareStellingen();
+      var i = nieuw.indexOf(s);
+      var allesKlaar = nieuw.every(function (x) { return GS.isNum(S.scan.antwoorden[x.id]); });
+      if (i < nieuw.length - 1) naarStelling(i + 1);
+      else { GS.render(); if (allesKlaar && knop) { var r = knop.getBoundingClientRect(); GS.confetti(r.left + r.width / 2, r.top); } }
+    }, 320);
+  }
+  GS.op('score', function (el) { score(Number(el.getAttribute('data-v')), el); });
+
+  document.addEventListener('keydown', function (e) {
+    if (S.view !== 'scan' || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    if (/^[1-5]$/.test(e.key)) { e.preventDefault(); score(Number(e.key), GS.$('.scale button[data-v="' + e.key + '"]')); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); naarStelling(S.ui.stelling + 1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); naarStelling(S.ui.stelling - 1); }
+    else if (e.key === '0' || e.key.toLowerCase() === 'n') { e.preventDefault(); GS.$('[data-act="skip"]').click(); }
+  });
+
+  // ==================================================================
+  // RESULTATEN
+  // ==================================================================
+  function verschilTekst(jij, gem) {
+    if (!GS.isNum(jij) || !GS.isNum(gem)) return '';
+    var d = jij - gem;
+    if (Math.abs(d) < 0.05) return t('res.gelijk');
+    return t(d > 0 ? 'res.boven' : 'res.onder', { v: GS.fScore(Math.abs(d)) });
+  }
+  function scoreBoxes(jij, gem, beste) {
+    return '<div class="score-boxes"><div class="sbox jij"><span>' + esc(t('res.jij')) + '</span><b class="num">' + esc(GS.fScore(jij)) + '</b></div>' +
+      '<div class="sbox gem"><span>' + esc(t('res.gem')) + '</span><b class="num">' + esc(GS.fScore(gem)) + '</b></div>' +
+      '<div class="sbox beste"><span>' + esc(t('res.beste')) + '</span><b class="num">' + esc(GS.fScore(beste)) + '</b></div></div>';
+  }
+  function resultaten() {
+    var a = GS.analyse();
+    var sc = a.scores, B = bm();
+    var dom = gekozenDomeinen();
+    if (!S.ui.domeinDetail || S.scan.domeinen.indexOf(S.ui.domeinDetail) < 0) S.ui.domeinDetail = dom[0].id;
+    var totaalGem = GSCalc.mean(dom.map(function (d) { return (B.domein[d.id] || {}).gem; }));
+    var totaalBeste = GSCalc.mean(dom.map(function (d) { return (B.domein[d.id] || {}).beste; }));
+    var html = '<div class="wrap"><div class="page-head"><span class="eyebrow">' + esc(t('stap.resultaten')) + '</span><h1 class="display d-m">' + esc(t('res.titel')) + (S.scan.kantoor.naam ? ' · ' + esc(S.scan.kantoor.naam) : '') + '</h1><p class="lede">' + esc(t('res.sub', { n: B.n })) + '</p></div>';
+    html += '<div class="res-hero"><div class="res-total">' + GS.nshape('width:120px;height:120px;right:-24px;bottom:-24px') +
+      '<span class="eyebrow" style="color:#00001D">' + esc(t('res.totaal')) + '</span>' + scoreBoxes(sc.totaal, totaalGem, totaalBeste) +
+      '<p class="sub-m" style="color:#00001D;position:relative">' + esc(verschilTekst(sc.totaal, totaalGem)) + '</p>' + hoogtepunten(a, dom) + '</div>' +
+      '<div class="card" style="display:grid;place-items:center">' +
+        Charts.radar({ axes: dom.map(function (d) { return L(d); }), taal: S.taal, w: 520, h: 400, labelSize: 14, series: [
+          { values: dom.map(function (d) { return (B.domein[d.id] || {}).beste; }), color: K.beste, width: 6 },
+          { values: dom.map(function (d) { return (B.domein[d.id] || {}).gem; }), color: K.gem, width: 6 },
+          { values: dom.map(function (d) { return sc.domein[d.id]; }), color: K.jij, width: 6, fill: true }
+        ], series2: null }).replace('<svg', '<svg style="width:100%;max-width:520px;height:auto"') +
+        '<div class="legend"><span><i style="background:' + K.jij + '"></i>' + esc(t('res.jijLang')) + '</span><span><i style="background:' + K.gem + '"></i>' + esc(t('res.gemLang')) + '</span><span><i style="background:' + K.beste + '"></i>' + esc(t('res.besteLang')) + '</span></div>' +
+      '</div></div>';
+
+    html += '<div class="domain-grid">' + dom.map(function (d) {
+      var jij = sc.domein[d.id], g = (B.domein[d.id] || {}).gem, be = (B.domein[d.id] || {}).beste;
+      return '<button type="button" class="dcard" data-act="domeinDetail" data-id="' + d.id + '" aria-pressed="' + (S.ui.domeinDetail === d.id) + '">' +
+        '<span class="head"><span class="sub-m">' + esc(L(d)) + '</span><span class="dot" style="width:12px;height:12px;border-radius:4px;background:' + esc(d.kleur) + '"></span></span>' +
+        '<span class="big num">' + esc(GS.fScore(jij)) + '</span>' +
+        '<span class="bar3">' + bar(t('res.jij'), jij, K.jij) + bar(t('res.gem'), g, K.gem) + bar(t('res.beste'), be, K.beste) + '</span>' +
+        '<span class="muted">' + esc(verschilTekst(jij, g)) + '</span></button>';
+    }).join('') + '</div>';
+
+    var d = domein(S.ui.domeinDetail);
+    var subs = d.subthemas;
+    html += '<div class="detail"><div class="card stack"><span class="eyebrow">' + esc(t('s.res.eyebrow')) + '</span><h2 class="display d-s">' + esc(L(d, 'rapport') || L(d)) + '</h2>' +
+      scoreBoxes(sc.domein[d.id], (B.domein[d.id] || {}).gem, (B.domein[d.id] || {}).beste) +
+      '<table class="stable"><thead><tr><th>' + esc(t('res.onderwerp')) + '</th><th>' + esc(t('res.scoreJij')) + '</th><th>' + esc(t('res.scoreGem')) + '</th><th>' + esc(t('res.scoreBeste')) + '</th></tr></thead><tbody>' +
+      subs.map(function (x) { return '<tr><td>' + esc(L(C.subthemas[x])) + '</td><td class="jij num">' + esc(GS.fScore(sc.subthema[x])) + '</td><td class="gem num">' + esc(GS.fScore((B.subthema[x] || {}).gem)) + '</td><td class="beste num">' + esc(GS.fScore((B.subthema[x] || {}).beste)) + '</td></tr>'; }).join('') +
+      '</tbody></table></div>' +
+      '<div class="stack"><div class="card" style="display:grid;place-items:center">' +
+        Charts.radar({ axes: subs.map(function (x) { return L(C.subthemas[x]); }), taal: S.taal, w: 480, h: 380, labelSize: 13, series: [
+          { values: subs.map(function (x) { return (B.subthema[x] || {}).beste; }), color: K.beste, width: 5 },
+          { values: subs.map(function (x) { return (B.subthema[x] || {}).gem; }), color: K.gem, width: 5 },
+          { values: subs.map(function (x) { return sc.subthema[x]; }), color: K.jij, width: 5, fill: true }
+        ] }).replace('<svg', '<svg style="width:100%;max-width:480px;height:auto"') +
+      '</div>' + zwakste(d.id, sc) + '</div></div>';
+    html += navRow() + '</div>';
+    return html;
+  }
+  function hoogtepunten(a, dom) {
+    var met = dom.filter(function (d) { return GS.isNum(a.scores.domein[d.id]); });
+    if (!met.length) return '';
+    var sterk = met.slice().sort(function (x, y) { return a.scores.domein[y.id] - a.scores.domein[x.id]; })[0];
+    var zwak = met.slice().sort(function (x, y) { return a.scores.domein[x.id] - a.scores.domein[y.id]; })[0];
+    var kans = a.kansen[0] ? C.functies[a.kansen[0].functie] : null;
+    function rij(icon, label, waarde) { return '<div style="display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start;color:#00001D"><span class="ms">' + icon + '</span><span><span style="font-size:13px;font-weight:700;opacity:.75">' + esc(label) + '</span><br><b style="font-size:17px">' + esc(waarde) + '</b></span></div>'; }
+    return '<div class="stack" style="gap:14px;position:relative;background:rgba(255,255,255,.22);border-radius:14px;padding:18px">' +
+      rij('trending_up', t('res.sterkst'), L(sterk) + ' · ' + GS.fScore(a.scores.domein[sterk.id])) +
+      (zwak.id !== sterk.id ? rij('flag', t('res.zwakst'), L(zwak) + ' · ' + GS.fScore(a.scores.domein[zwak.id])) : '') +
+      (kans ? rij('bolt', t('res.grootsteKans'), L(kans)) : '') + '</div>';
+  }
+  function bar(label, v, kleur) {
+    return '<span class="row"><span>' + esc(label) + '</span><span class="track"><span class="fill" style="width:' + (GS.isNum(v) ? v / 5 * 100 : 0) + '%;background:' + kleur + '"></span></span><span class="v num">' + esc(GS.fScore(v)) + '</span></span>';
+  }
+  function zwakste(dId, sc) {
+    var items = Object.keys(sc.stelling).filter(function (id) { return C.stellingById[id].domein === dId; })
+      .sort(function (a, b) { return sc.stelling[a] - sc.stelling[b]; }).slice(0, 5)
+      .filter(function (id) { return sc.stelling[id] <= 3; });
+    if (!items.length) return '';
+    return '<div class="stack" style="gap:10px"><span class="sub-m">' + esc(t('res.zwaksteStellingen')) + '</span><ul class="weak-list">' + items.map(function (id) {
+      var s = C.stellingById[id];
+      return '<li><span class="sc s' + sc.stelling[id] + '">' + sc.stelling[id] + '</span><span><b>' + esc(L(C.functies[s.functie])) + '</b><br><span class="muted">“' + esc(L(s)) + '”</span></span></li>';
+    }).join('') + '</ul></div>';
+  }
+  GS.op('domeinDetail', function (el) { S.ui.domeinDetail = el.getAttribute('data-id'); var y = window.scrollY; GS.render(); window.scrollTo(0, y); });
+
+  // ==================================================================
+  // PRIORITEREN
+  // ==================================================================
+  var KW = ['quickwin', 'project', 'nice', 'heroverwegen'];
+  function prioriteren() {
+    var a = GS.analyse();
+    var items = a.matrix;
+    var html = '<div class="wrap"><div class="page-head"><span class="eyebrow">' + esc(t('stap.prioriteren')) + '</span><div class="row"><h1 class="display d-m">' + esc(t('prio.titel')) + '</h1>' +
+      (Object.keys(S.scan.matrix || {}).length ? '<button type="button" class="btn btn-tertiary" data-act="matrixReset">' + esc(t('knop.herstel')) + '</button>' : '') + '</div><p class="lede">' + esc(t('prio.sub')) + '</p></div>';
+    if (!items.length) return html + '<div class="card-tint"><p class="sub-m">' + esc(t('prio.leeg')) + '</p></div>' + navRow() + '</div>';
+    var zichtbaar = S.ui.alleMatrix ? items : items.slice(0, MATRIX_MAX);
+    html += '<div class="prio-layout"><div class="stack"><div class="matrix-outer"><div class="matrix" id="matrix">' +
+      KW.map(function (q) { return '<div class="mq mq-' + q + '"><div><div class="t">' + esc(t('prio.' + q)) + '</div><div class="s">' + esc(t('prio.' + q + 'Sub')) + '</div></div></div>'; }).join('') +
+      '<div class="mdiv-v"></div><div class="mdiv-h"></div>' +
+      zichtbaar.map(function (it, i) { return punt(it, i); }).join('') +
+      '</div><span class="axis-x">' + esc(t('prio.asX')) + ' →</span><span class="axis-y">' + esc(t('prio.asY')) + ' →</span></div>' +
+      '<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center"><p class="muted">' + ms('drag_pan') + ' ' + esc(t('prio.verplaatsHint')) + '</p>' +
+      (items.length > MATRIX_MAX ? '<button type="button" class="btn btn-tertiary btn-sm" data-act="alleMatrix">' + esc(S.ui.alleMatrix ? t('prio.toonTop', { n: MATRIX_MAX }) : t('prio.toonAlle', { n: items.length })) + '</button>' : '') + '</div>' +
+      '<div class="card" id="prioLijst">' + prioLijst(items) + '</div></div>' +
+      '<aside class="card stack" style="position:sticky;top:calc(var(--topbar-h) + 20px)" id="kansen">' + kansenHtml(a.kansen) + '</aside></div>';
+    return html + navRow() + '</div>';
+  }
+  var MATRIX_MAX = 12;
+  function punt(it, i) {
+    var f = C.functies[it.functie];
+    var uitleg = it.stellingen.map(function (id) { return '“' + L(C.stellingById[id]) + '”'; }).join('\n');
+    return '<button type="button" class="mpoint q-' + it.kwadrant + (it.handmatig ? ' manual' : '') + '" data-id="' + esc(it.functie) + '" style="left:' + (it.x * 100).toFixed(2) + '%;top:' + (it.y * 100).toFixed(2) + '%" title="' + esc(uitleg) + '" aria-label="' + esc((i + 1) + '. ' + L(f)) + '"><span class="dot">' + (i + 1) + '</span><span class="lbl">' + esc(L(f)) + '</span></button>';
+  }
+  function prioLijst(items) {
+    var zichtbaar = S.ui.alleMatrix ? items : items.slice(0, MATRIX_MAX);
+    return '<div class="stack" style="gap:16px">' + KW.map(function (q) {
+      var lijst = zichtbaar.map(function (it, i) { return { it: it, i: i }; }).filter(function (x) { return x.it.kwadrant === q; });
+      if (!lijst.length) return '';
+      return '<div class="stack" style="gap:8px"><span class="chip ' + (q === 'quickwin' ? 'blurple' : q === 'project' ? 'dark' : '') + '" style="justify-self:start">' + esc(t('prio.' + q)) + ' · ' + lijst.length + '</span>' +
+        lijst.map(function (x) {
+          return '<div style="display:grid;grid-template-columns:28px 1fr;gap:10px;font-size:14px;align-items:start"><b class="num">' + (x.i + 1) + '</b><span><b>' + esc(L(C.functies[x.it.functie])) + '</b>' +
+            x.it.stellingen.map(function (id) { return '<br><span class="muted">' + esc(GS.state.scan.antwoorden[id]) + ' · “' + esc(L(C.stellingById[id])) + '”</span>'; }).join('') + '</span></div>';
+        }).join('') + '</div>';
+    }).join('') + '</div>';
+  }
+  GS.op('alleMatrix', function () { S.ui.alleMatrix = !S.ui.alleMatrix; GS.render(); });
+  function kansenHtml(kansen) {
+    return '<span class="eyebrow">' + esc(t('s.kans.eyebrow')) + '</span><h2 class="sub-l">' + esc(t('prio.kansen')) + '</h2><ol class="kans-list">' + kansen.map(function (k, i) {
+      var f = C.functies[k.functie];
+      return '<li><span class="n">' + (i + 1) + '</span><span><b>' + esc(L(f)) + '</b><p>' + esc(L(f, 'beschrijving')) + '</p></span></li>';
+    }).join('') + '</ol>';
+  }
+  GS.op('matrixReset', function () { S.scan.matrix = {}; GS.gewijzigd(); GS.render(); });
+
+  na.prioriteren = function () {
+    var matrix = GS.$('#matrix');
+    if (!matrix) return;
+    function verplaats(el, x, y, klaar) {
+      x = Math.max(0.03, Math.min(0.97, x)); y = Math.max(0.04, Math.min(0.96, y));
+      el.style.left = (x * 100) + '%'; el.style.top = (y * 100) + '%';
+      var q = GSCalc.kwadrant(x, y);
+      KW.forEach(function (k) { el.classList.toggle('q-' + k, k === q); });
+      if (klaar) {
+        var id = el.getAttribute('data-id');
+        var oud = (GS.analyse().matrix.filter(function (m) { return m.id === id; })[0] || {}).kwadrant;
+        S.scan.matrix[id] = { x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000 };
+        el.classList.add('manual');
+        GS.gewijzigd();
+        var a = GS.analyse();
+        GS.$('#kansen').innerHTML = kansenHtml(a.kansen);
+        GS.$('#prioLijst').innerHTML = prioLijst(a.matrix);
+        if (q === 'quickwin' && oud !== 'quickwin') { var r = el.getBoundingClientRect(); GS.confetti(r.left + r.width / 2, r.top); GS.toast(t('prio.quickwin') + '!'); }
+      }
+    }
+    GS.$$('.mpoint', matrix).forEach(function (el) {
+      el.addEventListener('pointerdown', function (e) {
+        if (e.button !== undefined && e.button !== 0) return;
+        e.preventDefault();
+        el.setPointerCapture(e.pointerId);
+        el.classList.add('dragging');
+        var rect = matrix.getBoundingClientRect();
+        function pos(ev) { return [(ev.clientX - rect.left) / rect.width, (ev.clientY - rect.top) / rect.height]; }
+        function move(ev) { var p = pos(ev); verplaats(el, p[0], p[1], false); }
+        function up(ev) {
+          el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
+          el.classList.remove('dragging');
+          var p = pos(ev); verplaats(el, p[0], p[1], true);
+        }
+        el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+      });
+      el.addEventListener('keydown', function (e) {
+        var d = { ArrowLeft: [-0.04, 0], ArrowRight: [0.04, 0], ArrowUp: [0, -0.04], ArrowDown: [0, 0.04] }[e.key];
+        if (!d) return;
+        e.preventDefault();
+        var x = parseFloat(el.style.left) / 100 + d[0], y = parseFloat(el.style.top) / 100 + d[1];
+        verplaats(el, x, y, true);
+      });
+    });
+  };
+
+  // ==================================================================
+  // BUSINESS CASE
+  // ==================================================================
+  function businesscase() {
+    var dom = gekozenDomeinen();
+    var heeftPayroll = S.scan.domeinen.indexOf('payroll') >= 0;
+    return '<div class="wrap"><div class="page-head"><span class="eyebrow">' + esc(t('stap.businesscase')) + '</span><h1 class="display d-m">' + esc(t('bc.titel')) + '</h1><p class="lede">' + esc(t('bc.sub')) + '</p></div>' +
+      '<div class="bc-layout"><div class="bc-inputs">' +
+        (heeftPayroll ? '<div class="card stack"><span class="sub-m">' + esc(t('kc.payroll')) + '</span>' + payrollInvoer('bcHerbereken') + '</div>' : '') +
+        dom.filter(function (d) { return d.id !== 'payroll'; }).map(function (d) { return '<div class="card">' + overigInvoer(d, 'bcHerbereken') + '</div>'; }).join('') +
+        '<details class="card"><summary>' + ms('info') + esc(t('bc.uitleg')) + '</summary><p class="muted" style="margin-top:10px">' + esc(t('bc.uitlegTekst')) + '</p></details>' +
+      '</div><div id="bcResultaat" class="stack">' + bcResultaat() + '</div></div>' + navRow() + '</div>';
+  }
+  GS.op('bcHerbereken', GS.debounce(function () { var el = GS.$('#bcResultaat'); if (el) el.innerHTML = bcResultaat(); }, 120));
+
+  function bcResultaat() {
+    var a = GS.analyse(), bc = a.businessCase, p = bc.payroll;
+    var html = '<div class="bc-total">' + GS.nshape('width:90px;height:90px;right:30px;top:30px') +
+      '<span class="hl">' + esc(t('bc.totaal')) + '</span><span class="v num">' + esc(GS.fEur(bc.totaalVoordeel)) + '</span>' +
+      '<div class="years">' + bc.jaren.map(function (j) { return '<div><span>' + esc(t('bc.jaar', { n: j.jaar })) + '</span><b class="num">' + esc(GS.fEur(j.voordeel)) + '</b></div>'; }).join('') + '</div></div>';
+    if (S.scan.domeinen.indexOf('payroll') >= 0) {
+      if (!p) html += '<div class="card-tint"><p>' + esc(t('bc.payrollLeeg')) + '</p></div>';
+      else html += payrollResultaat(p);
+    }
+    var overig = gekozenDomeinen().filter(function (d) { return d.id !== 'payroll'; });
+    if (overig.length) {
+      html += '<div class="stack" style="gap:12px"><span class="sub-l">' + esc(t('bc.overigTitel')) + '</span><div class="bc-grid">' + overig.map(function (d) {
+        var x = bc.domeinen[d.id];
+        return '<div class="card dom-cost"><span class="eyebrow">' + esc(L(d)) + '</span>' + (x ?
+          '<span class="v num">' + esc(GS.fEur(x.teWinnenJaar)) + '</span><span class="muted">' + esc(t('bc.overigKosten', { bedrag: GS.fEur(x.kostenJaar) })) + ' · ' + esc(GS.fScore(a.scores.domein[d.id])) + '/5</span>' +
+          '<span class="muted">' + x.jaren.map(function (j) { return esc(t('bc.jaar', { n: j.jaar })) + ': ' + esc(GS.fEur(j.voordeel)); }).join(' · ') + '</span>'
+          : '<p class="muted">' + esc(t('bc.overigLeeg')) + '</p>') + '</div>';
+      }).join('') + '</div></div>';
+    }
+    return html;
+  }
+  function cmpRij(label, waarden, cls, fmt) {
+    return '<span class="l">' + esc(label) + '</span>' + waarden.map(function (v, i) { return '<span class="' + cls + (cls === 'new' ? ' y' + (i + 1) : '') + ' num">' + esc(fmt(v)) + '</span>'; }).join('');
+  }
+  function payrollResultaat(p) {
+    var jaren = [1, 2, 3].map(function (n) { return t('bc.jaar', { n: n }); });
+    var eur2 = function (v) { return GS.fEur(v, 2); };
+    var html = '<div class="bc-grid">';
+    html += '<div class="card stack"><span class="eyebrow">' + esc(t('bc.kostprijs')) + '</span><div class="cmp"><span></span>' + jaren.map(function (j) { return '<span class="h">' + esc(j) + '</span>'; }).join('') +
+      cmpRij(t('bc.huidig'), p.jaren.map(function (j) { return j.huidigPerStrook; }), 'old', eur2) + cmpRij(t('bc.metNmbrs'), p.jaren.map(function (j) { return j.nieuwPerStrook; }), 'new', eur2) + '</div>' +
+      Charts.groepen({ taal: S.taal, eur: true, w: 520, h: 300, groups: [
+        { label: t('bc.huidig'), values: p.jaren.map(function (j) { return j.huidigPerStrook; }) },
+        { label: t('bc.metNmbrs'), values: p.jaren.map(function (j) { return j.nieuwPerStrook; }) }
+      ], legend: jaren }).replace('<svg', '<svg style="width:100%;height:auto"') + '</div>';
+    html += '<div class="card stack"><span class="eyebrow">' + esc(t('bc.stroken')) + '</span><div class="cmp"><span></span>' + jaren.map(function (j) { return '<span class="h">' + esc(j) + '</span>'; }).join('') +
+      cmpRij(t('bc.huidig'), p.jaren.map(function (j) { return j.strokenPerFteZonder; }), 'old', function (v) { return GS.fNum(v); }) + cmpRij(t('bc.metNmbrs'), p.jaren.map(function (j) { return j.strokenPerFteMet; }), 'new', function (v) { return GS.fNum(v); }) + '</div>' +
+      Charts.groepen({ taal: S.taal, w: 520, h: 300, groups: [
+        { label: t('bc.huidig'), values: p.jaren.map(function (j) { return j.strokenPerFteZonder; }) },
+        { label: t('bc.metNmbrs'), values: p.jaren.map(function (j) { return j.strokenPerFteMet; }) }
+      ], legend: jaren }).replace('<svg', '<svg style="width:100%;height:auto"') + '</div>';
+    html += '<div class="card stack"><span class="eyebrow">' + esc(t('bc.fte')) + '</span><div class="cmp"><span></span>' + jaren.map(function (j) { return '<span class="h">' + esc(j) + '</span>'; }).join('') +
+      cmpRij(t('bc.huidig'), p.jaren.map(function (j) { return j.fteZonder; }), 'old', function (v) { return GS.fNum(v, 2); }) + cmpRij(t('bc.metNmbrs'), p.jaren.map(function (j) { return j.fteMet; }), 'new', function (v) { return GS.fNum(v, 2); }) + '</div>' +
+      Charts.groepen({ taal: S.taal, w: 520, h: 300, axisDec: 1, groups: [
+        { label: t('bc.huidig'), values: p.jaren.map(function (j) { return j.fteZonder; }) },
+        { label: t('bc.metNmbrs'), values: p.jaren.map(function (j) { return j.fteMet; }) }
+      ], legend: jaren }).replace('<svg', '<svg style="width:100%;height:auto"') + '</div>';
+    html += '<div class="card stack"><span class="eyebrow">' + esc(t('bc.benchmark')) + '</span>' +
+      Charts.kolommen({ taal: S.taal, w: 520, h: 300, items: [
+        { label: t('bc.jijOrg'), value: p.strokenPerFte, color: K.gem },
+        { label: t('bc.gemNL'), value: bm().strokenPerFte.gemiddeld, color: K.jij, ink: '#00001D' },
+        { label: t('bc.potentie'), value: Number(C.instellingen.potentieStrokenPerFte), color: K.beste }
+      ] }).replace('<svg', '<svg style="width:100%;height:auto"') + '</div>';
+    html += '</div>';
+    var tot = function (f) { return p.jaren.reduce(function (s, j) { return s + j[f]; }, 0); };
+    html += '<div class="card stack"><span class="eyebrow">' + esc(t('bc.payrollVoordeel')) + '</span>' +
+      Charts.lijnen({ taal: S.taal, w: 860, h: 260, labels: jaren, series: [
+        { values: p.jaren.map(function (j) { return j.huidigeKosten; }), color: K.beste },
+        { values: p.jaren.map(function (j) { return j.nieuweKosten; }), color: K.jij },
+        { values: p.jaren.map(function (j) { return Math.max(0, j.voordeel); }), color: K.gem }
+      ] }).replace('<svg', '<svg style="width:100%;height:auto"') +
+      '<div class="table-wrap"><table class="money-table"><thead><tr><th>' + esc(t('s.drie.omschrijving')) + '</th>' + jaren.map(function (j) { return '<th>' + esc(j) + '</th>'; }).join('') + '<th>' + esc(t('bc.totaalKolom')) + '</th></tr></thead><tbody>' +
+      geldRij(t('bc.huidigeKosten'), p.jaren.map(function (j) { return j.huidigeKosten; }), tot('huidigeKosten'), 'c-old') +
+      geldRij(t('bc.nieuweKosten'), p.jaren.map(function (j) { return j.nieuweKosten; }), tot('nieuweKosten'), 'c-new') +
+      geldRij(t('bc.conversie'), p.jaren.map(function (j) { return j.investering; }), tot('investering'), 'c-inv') +
+      '<tr class="total">' + '<td>' + esc(t('bc.voordeel')) + '</td>' + p.jaren.map(function (j) { return '<td class="num">' + esc(GS.fEur(j.voordeel, 2)) + '</td>'; }).join('') + '<td class="num">' + esc(GS.fEur(tot('voordeel'), 2)) + '</td></tr>' +
+      '</tbody></table></div></div>';
+    return html;
+  }
+  function geldRij(label, vals, totaal, cls) {
+    return '<tr><td>' + esc(label) + '</td>' + vals.map(function (v) { return '<td class="num ' + cls + '">' + esc(GS.fEur(v, 2)) + '</td>'; }).join('') + '<td class="num ' + cls + '">' + esc(GS.fEur(totaal, 2)) + '</td></tr>';
+  }
+
+  // ==================================================================
+  // VOORSTEL
+  // ==================================================================
+  var OPTIES = ['expense', 'engage', 'perform', 'hire', 'pay'];
+  function voorstel() {
+    var k = S.scan.kerncijfers;
+    var head = '<div class="wrap"><div class="page-head"><span class="eyebrow">' + esc(t('stap.voorstel')) + '</span><h1 class="display d-m">' + esc(t('vs.titel')) + '</h1>';
+    if (!(k.strokenPerMaand > 0)) return head + '<p class="lede">' + esc(t('bc.payrollLeeg')) + '</p></div>' + navRow() + '</div>';
+    return head + '<p class="lede">' + esc(t('vs.sub', { stroken: GS.fNum(k.strokenPerMaand) })) + '</p></div><div id="vsInhoud">' + voorstelInhoud() + '</div>' + navRow() + '</div>';
+  }
+  function voorstelInhoud() {
+    var pr = GS.analyse().prijs;
+    var v = S.scan.voorstel;
+    var pk = pr.pakket;
+    var html = '<div class="vs-layout"><div class="stack">' +
+      '<div class="advice">' + GS.nshape('width:80px;height:80px;right:26px;top:26px') +
+        '<span class="hl">' + esc(t('vs.advies')) + '</span><span class="display d-s">' + esc(t('vs.pakket', { pakket: pk.naam })) + '</span>' +
+        '<span class="price num">' + esc(GS.fEur(pk.totaal)) + '<small>' + esc(t('vs.perMaand')) + '</small></span>' +
+        '<span class="muted">' + esc(t('vs.inbegrepen', { n: GS.fNum(pk.inbegrepen) })) + (pk.extraStroken ? ' · ' + esc(t('vs.extra', { n: GS.fNum(pk.extraStroken), prijs: GS.fEur(pk.prijsExtraStrook, 2) })) : '') + '</span>' +
+      '</div>' +
+      '<div class="card stack"><span class="sub-m">' + esc(t('vs.start')) + '</span><div class="seg" role="group">' +
+        ['upGoEssential', 'upGoAdvanced', 'upGoHr'].map(function (sp) {
+          var prijs = pr.startpakket.rij ? pr.startpakket.rij[sp] : null;
+          return '<button type="button" data-act="startpakket" data-id="' + sp + '" aria-pressed="' + (v.startpakket === sp) + '">' + esc(t('vs.' + sp)) + ' · ' + esc(GS.isNum(prijs) ? GS.fEur(prijs) : '–') + '</button>';
+        }).join('') + '</div></div>' +
+      '<details class="card"><summary class="sub-m" style="cursor:pointer">' + esc(t('vs.alle')) + '</summary><div class="pk-list" style="margin-top:12px">' + pr.alleOpties.map(function (o) {
+        return '<div class="pk' + (o.naam === pk.naam ? ' best' : '') + '"><span>' + esc(o.naam) + '</span><span class="muted num">' + esc(GS.fEur(o.pakketprijs)) + ' + ' + esc(GS.fNum(o.extraStroken)) + ' × ' + esc(GS.fEur(o.prijsExtraStrook, 2)) + '</span><b class="num">' + esc(GS.fEur(o.totaal)) + '</b></div>';
+      }).join('') + '</div></details>' +
+    '</div><div class="stack">' +
+      '<div class="card stack"><span class="sub-m">' + esc(t('vs.opties')) + '</span>' +
+        invoer('vsMw', t('vs.medewerkers'), 'voorstel.medewerkers', { na: 'vsHerbereken', placeholder: GS.fNum(pr.medewerkers) }) +
+        OPTIES.map(function (o) {
+          var x = pr.add[o];
+          var prijs = !x ? '–' : x.opAanvraag ? t('vs.opAanvraag') : GS.fEur(x.prijs);
+          return '<label class="addon"><input type="checkbox" data-bind="voorstel.opties.' + o + '" data-na="vsHerbereken"' + (v.opties[o] ? ' checked' : '') + ' style="width:20px;height:20px;accent-color:#6B5DFF"><span><b>' + esc(t('vs.' + o)) + '</b><small>' + esc(t('vs.' + o + 'Sub')) + '</small></span><span class="p num">' + esc(prijs) + '</span></label>';
+        }).join('') +
+      '</div>' +
+      '<div class="card-dark stack"><span class="hl">' + esc(t('vs.totaal')) + '</span><span class="display d-m num">' + esc(GS.fEur(pr.totaalMaand)) + '</span>' + (pr.opAanvraag ? '<span class="muted">+ ' + esc(t('vs.opAanvraag')) + '</span>' : '') + '</div>' +
+    '</div></div>';
+    return html;
+  }
+  GS.op('vsHerbereken', GS.debounce(function () {
+    var el = GS.$('#vsInhoud'); if (!el) return;
+    var actief = document.activeElement && document.activeElement.id;
+    el.innerHTML = voorstelInhoud();
+    if (actief && GS.$('#' + actief)) { var i = GS.$('#' + actief); i.focus(); if (i.setSelectionRange && i.value) i.setSelectionRange(i.value.length, i.value.length); }
+  }, 400));
+  GS.op('startpakket', function (el) { S.scan.voorstel.startpakket = el.getAttribute('data-id'); GS.gewijzigd(); GS.$('#vsInhoud').innerHTML = voorstelInhoud(); });
+
+  return {
+    home: home, start: start, kerncijfers: kerncijfers, scan: scan, resultaten: resultaten,
+    prioriteren: prioriteren, businesscase: businesscase, voorstel: voorstel, na: na,
+    _helpers: { navRow: navRow, scoreBoxes: scoreBoxes, gekozenDomeinen: gekozenDomeinen, bm: bm, ms: ms, invoer: invoer }
+  };
+})();
+</script>
