@@ -2,7 +2,8 @@
  * Groeiversneller Lite (Nmbrs campagne) - Google Apps Script web-app
  *
  * Publieke versie voor prospects: 5 thema's, matrix, business case en groeiverhaal.
- * De PDF komt pas vrij nadat iemand zijn NAWET-gegevens heeft achtergelaten;
+ * De PDF komt pas vrij nadat iemand zijn contactgegevens heeft achtergelaten (naam, organisatie,
+ * e-mail, telefoon en of de organisatie al Nmbrs Payroll gebruikt);
  * die gegevens komen in het tabblad "Leads" van de Google Sheet, zodat sales ze kan opvolgen.
  *
  * Dit project bestaat uit zes bestanden (map groeiversneller-lite/apps-script in de repository):
@@ -88,7 +89,7 @@ var TAB_PIJNPUNTEN = 'Lite - Pijnpunten';
 var PROP_SHEET = 'SPREADSHEET_ID_LITE';
 
 var KOLOMMEN_LEADS = [
-  'Sessie-ID', 'Ontvangen', 'Naam', 'Organisatie', 'Adres', 'Postcode', 'Plaats', 'E-mail',
+  'Sessie-ID', 'Ontvangen', 'Naam', 'Organisatie', 'E-mail',
   'Telefoon', 'Toestemming contact', 'Groeipotentieel', 'Pijnpunten', 'Quick wins',
   'Grote projecten', 'Uren per week', 'Kosten per jaar', 'Eerste stap', 'Gewenste startdatum',
   'Thema met meeste pijn', 'Quick wins (titels)', 'Grote projecten (titels)',
@@ -97,7 +98,7 @@ var KOLOMMEN_LEADS = [
   'Opvolgstatus', 'Eigenaar', 'Notities'
 ];
 /** Aantal kolommen dat de app vult (de rest is voor sales). */
-var LEADS_APP_KOLOMMEN = 23;
+var LEADS_APP_KOLOMMEN = 20;
 
 var KOLOMMEN_SESSIES = [
   'Sessie-ID', 'Organisatie', 'Gestart', 'Laatst bijgewerkt', 'Gegevens achtergelaten', 'Laatste stap',
@@ -317,10 +318,10 @@ function bewaarSessie(data) {
 
 /**
  * Wordt vanuit de app aangeroepen (google.script.run.bewaarLead) wanneer iemand
- * zijn NAWET-gegevens achterlaat om de PDF te downloaden. Pas als dit gelukt is,
+ * zijn contactgegevens achterlaat om de PDF te downloaden. Pas als dit gelukt is,
  * komt de PDF vrij. Een tweede keer (zelfde sessie) werkt de regel bij.
- * @param {Object} data Samenvatting van de sessie plus data.lead (naam, bedrijf, adres,
- *     postcode, plaats, email, telefoon, toestemming).
+ * @param {Object} data Samenvatting van de sessie plus data.lead (naam, bedrijf, email,
+ *     telefoon, nmbrsKlant, toestemming).
  * @return {{ok: boolean}}
  */
 function bewaarLead(data) {
@@ -346,9 +347,6 @@ function bewaarLead(data) {
       nu,
       tekst_(lead.naam),
       tekst_(lead.bedrijf),
-      tekst_(lead.adres),
-      alsTekst_(lead.postcode),
-      tekst_(lead.plaats),
       tekst_(lead.email),
       alsTekst_(lead.telefoon),
       lead.toestemming ? 'ja' : 'nee',
@@ -396,11 +394,11 @@ function controleerSessie_(data) {
   return id;
 }
 
-/** Controleert de NAWET-gegevens opnieuw op de server (de browser is niet te vertrouwen). */
+/** Controleert de contactgegevens opnieuw op de server (de browser is niet te vertrouwen). */
 function controleerLead_(lead) {
   if (!lead || typeof lead !== 'object') throw new Error('Geen contactgegevens ontvangen.');
   var schoon = {};
-  var velden = { naam: 120, bedrijf: 120, adres: 160, postcode: 10, plaats: 80, email: 160, telefoon: 30 };
+  var velden = { naam: 120, bedrijf: 120, email: 160, telefoon: 30 };
   Object.keys(velden).forEach(function (k) {
     var v = String(lead[k] || '').replace(/\s+/g, ' ').trim().slice(0, velden[k]);
     if (!v) throw new Error('Veld "' + k + '" ontbreekt.');
@@ -424,7 +422,6 @@ function stuurMelding_(lead, data) {
       '',
       'Naam: ' + lead.naam,
       'Organisatie: ' + lead.bedrijf,
-      'Adres: ' + lead.adres + ', ' + lead.postcode + ' ' + lead.plaats,
       'E-mail: ' + lead.email,
       'Telefoon: ' + lead.telefoon,
       '',
@@ -470,6 +467,7 @@ function openSpreadsheet_() {
 /** Geeft het tabblad terug; maakt het aan met een opgemaakte kopregel als het nog niet bestaat. */
 function tab_(ss, naam, kolommen) {
   var sh = ss.getSheetByName(naam);
+  if (sh && (naam === TAB_LEADS || naam === TAB_KLANTEN)) verwijderAdresKolommen_(sh);
   if (!sh) {
     sh = ss.insertSheet(naam);
     sh.getRange(1, 1, 1, kolommen.length).setValues([kolommen])
@@ -477,8 +475,8 @@ function tab_(ss, naam, kolommen) {
     sh.setFrozenRows(1);
     if (naam === TAB_LEADS || naam === TAB_KLANTEN) {
       sh.getRange('B:B').setNumberFormat('dd-mm-yyyy hh:mm');
-      sh.getRange('P:P').setNumberFormat('€ #,##0');
-      sh.getRange('R:R').setNumberFormat('dd-mm-yyyy');
+      sh.getRange('M:M').setNumberFormat('€ #,##0');
+      sh.getRange('O:O').setNumberFormat('dd-mm-yyyy');
       // Kolommen voor sales in Lavender, zodat duidelijk is wat de app niet aanraakt.
       sh.getRange(1, LEADS_APP_KOLOMMEN + 1, 1, kolommen.length - LEADS_APP_KOLOMMEN).setBackground('#E7E5FF');
       var status = SpreadsheetApp.newDataValidation()
@@ -494,6 +492,16 @@ function tab_(ss, naam, kolommen) {
     }
   }
   return sh;
+}
+
+/**
+ * Eenmalige opschoning: eerdere versies vroegen ook adres, postcode en plaats (kolommen E t/m G).
+ * Staan die kolommen er nog, dan worden ze weggehaald; de kolommen erachter (ook die voor sales)
+ * schuiven gewoon mee naar links.
+ */
+function verwijderAdresKolommen_(sh) {
+  var kop = sh.getRange(1, 5, 1, 3).getValues()[0];
+  if (kop[0] === 'Adres' && kop[1] === 'Postcode' && kop[2] === 'Plaats') sh.deleteColumns(5, 3);
 }
 
 /** Rijnummer van de sessie in kolom A, of 0 als die er nog niet is. */

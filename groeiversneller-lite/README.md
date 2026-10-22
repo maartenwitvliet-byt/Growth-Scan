@@ -2,7 +2,7 @@
 
 Publieke, kortere versie van de Nmbrs Groeiversneller. Prospects vullen hem zelf in
 via een campagnelink. Ze komen uit bij een persoonlijk groeiverhaal als PDF; die
-downloaden ze pas nadat ze hun NAWET-gegevens hebben achtergelaten. Die gegevens
+downloaden ze pas nadat ze hun contactgegevens hebben achtergelaten. Die gegevens
 komen in een Google Sheet, zodat sales ze kan opvolgen.
 
 ## Flow
@@ -13,7 +13,7 @@ komen in een Google Sheet, zodat sales ze kan opvolgen.
 3. **Prioriteer** – matrix van impact × inspanning. Slepen, of tikken en een vak kiezen (handig op een telefoon).
 4. **Business case** – hoeveel tijd ben je nu kwijt? Dit wordt omgerekend naar uren en euro's per jaar.
 5. **Groeiverhaal** – score, roadmap, quick wins en de eerste stap. **Download je groeiverhaal (PDF)**
-   opent eerst het formulier (naam, organisatie, adres, postcode, plaats, e-mail, telefoon, of de organisatie al Nmbrs Payroll gebruikt, en toestemming).
+   opent eerst het formulier (naam, organisatie, e-mail, telefoon, of de organisatie al Nmbrs Payroll gebruikt, en toestemming).
 
 ## Installeren (Google Apps Script)
 Alles wat je plakt staat in de map **`apps-script/`**. De app is daar bewust in vijf kleinere
@@ -64,7 +64,7 @@ De bron komt in de kolom **Bron** van de tabbladen Lite - Leads en Lite - Sessie
 ## Tabbladen in de Sheet
 | Tabblad | Inhoud |
 |---|---|
-| **Lite - Leads** | Eén regel per prospect (gebruikt Nmbrs Payroll nog niet) die gegevens heeft achtergelaten: NAWET, score, pijnpunten, kosten per jaar, eerste stap en bron. De lavendelkleurige kolommen *Opvolgstatus*, *Eigenaar* en *Notities* zijn voor sales; de app raakt ze niet aan. |
+| **Lite - Leads** | Eén regel per prospect (gebruikt Nmbrs Payroll nog niet) die gegevens heeft achtergelaten: naam, organisatie, e-mail, telefoon, score, pijnpunten, kosten per jaar, eerste stap en bron. De lavendelkleurige kolommen *Opvolgstatus*, *Eigenaar* en *Notities* zijn voor sales; de app raakt ze niet aan. |
 | **Lite - Klanten** | Zelfde kolommen, voor wie in het formulier aangeeft al Nmbrs Payroll te gebruiken. Verandert iemand in dezelfde sessie zijn antwoord, dan verhuist de regel mee. |
 | **Lite - Sessies** | Eén regel per gestarte scan, ook zonder gegevens. Zo zie je waar mensen afhaken (kolommen *Laatste stap* en *Gegevens achtergelaten*). |
 | **Lite - Pijnpunten** | Eén regel per aangetikt pijnpunt, voor analyses over alle prospects heen. |
@@ -88,5 +88,7 @@ Pas teksten of de werking aan in `index.html` (die kun je ook lokaal in een brow
 Maak daarna de Apps Script-bestanden opnieuw met `python3 bouw_apps_script.py`.
 
 ## Goed om te weten
+- Eerdere versies vroegen ook adres, postcode en plaats. Staan die kolommen nog in Lite - Leads of
+  Lite - Klanten, dan haalt de code ze bij de eerstvolgende opslag (of bij `setup`) automatisch weg.
 - De PDF-blokkade zit in de browser. Wie technisch handig is, kan die omzeilen. Voor leadgeneratie is dat gebruikelijk en acceptabel.
 - Lokaal geopend (zonder Apps Script) werkt de app ook. Er wordt dan niets opgeslagen, en de PDF komt na het formulier direct vrij. Handig om te testen.

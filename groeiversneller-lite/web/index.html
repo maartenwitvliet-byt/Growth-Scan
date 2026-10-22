@@ -688,7 +688,6 @@ kbd {
 .lead-field label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
 .lead-field .input { padding: 10px 16px; font-size: 15px; }
 .lead-field .input[aria-invalid="true"] { border-color: var(--coral-dark); box-shadow: 0 0 0 3px rgba(254, 110, 99, .18); }
-.lead-row-pc { display: grid; grid-template-columns: 140px 1fr; gap: 14px; }
 .lead-klant { border: none; margin: 18px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 10px; }
 .lead-klant legend { font-size: 13px; font-weight: 700; margin-bottom: 8px; padding: 0; width: 100%; }
 .lead-klant label { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border: 1.5px solid var(--line-strong); border-radius: 999px; font-size: 15px; cursor: pointer; background: var(--white); }
@@ -705,7 +704,7 @@ kbd {
 .lead-fine { font-size: 13px; color: var(--text-muted); margin: 0; flex: 1 1 200px; line-height: 1.35; }
 @media (max-width: 560px) {
   .lead-box { padding: 28px 20px 22px; }
-  .lead-grid, .lead-row-pc { grid-template-columns: 1fr; }
+  .lead-grid { grid-template-columns: 1fr; }
   .lead-title, .lead-intro { padding-right: 0; }
   .lead-actions .btn { width: 100%; }
 }
@@ -1336,11 +1335,6 @@ kbd {
     <div class="lead-grid">
       <div class="lead-field"><label for="leadNaam">Naam *</label><input class="input" id="leadNaam" name="naam" autocomplete="name" maxlength="120" required></div>
       <div class="lead-field"><label for="leadBedrijf">Organisatie *</label><input class="input" id="leadBedrijf" name="bedrijf" autocomplete="organization" maxlength="120" required></div>
-      <div class="lead-field full"><label for="leadAdres">Adres *</label><input class="input" id="leadAdres" name="adres" autocomplete="street-address" maxlength="160" placeholder="Straat en huisnummer" required></div>
-      <div class="lead-field full lead-row-pc">
-        <div><label for="leadPostcode">Postcode *</label><input class="input" id="leadPostcode" name="postcode" autocomplete="postal-code" maxlength="10" required></div>
-        <div><label for="leadPlaats">Plaats *</label><input class="input" id="leadPlaats" name="plaats" autocomplete="address-level2" maxlength="80" required></div>
-      </div>
       <div class="lead-field"><label for="leadEmail">E-mailadres *</label><input class="input" id="leadEmail" name="email" type="email" autocomplete="email" maxlength="160" required></div>
       <div class="lead-field"><label for="leadTelefoon">Telefoonnummer *</label><input class="input" id="leadTelefoon" name="telefoon" type="tel" autocomplete="tel" maxlength="30" required></div>
     </div>
@@ -3351,7 +3345,7 @@ const THEMES = [
   // ---------------------------------------------------------------
   // PDF ALLEEN NA GEGEVENS (NAWET)
   // ---------------------------------------------------------------
-  // De PDF komt pas vrij als naam, adres, woonplaats, e-mail en telefoon zijn
+  // De PDF komt pas vrij als naam, organisatie, e-mail en telefoon zijn
   // ingevuld. In de Apps Script-webapp gaan die eerst naar het tabblad Leads
   // van de Google Sheet (bewaarLead in Code.gs); pas daarna volgt de download.
   // Optioneel: link naar het privacystatement in de toestemmingstekst.
@@ -3362,12 +3356,10 @@ const THEMES = [
   const leadError = $("#leadError");
   const leadSubmitBtn = $("#leadSubmitBtn");
   const LEAD_FIELDS = {
-    naam: "#leadNaam", bedrijf: "#leadBedrijf", adres: "#leadAdres", postcode: "#leadPostcode",
-    plaats: "#leadPlaats", email: "#leadEmail", telefoon: "#leadTelefoon",
+    naam: "#leadNaam", bedrijf: "#leadBedrijf", email: "#leadEmail", telefoon: "#leadTelefoon",
   };
   const LEAD_LABELS = {
-    naam: "je naam", bedrijf: "je organisatie", adres: "je adres", postcode: "je postcode",
-    plaats: "je plaats", email: "een geldig e-mailadres", telefoon: "een geldig telefoonnummer",
+    naam: "je naam", bedrijf: "je organisatie", email: "een geldig e-mailadres", telefoon: "een geldig telefoonnummer",
   };
   let leadReturnFocus = null;
 
@@ -3430,7 +3422,6 @@ const THEMES = [
     const lead = {};
     Object.entries(LEAD_FIELDS).forEach(([k, sel]) => { lead[k] = $(sel).value.trim().replace(/\s+/g, " "); });
     lead.email = lead.email.toLowerCase();
-    lead.postcode = lead.postcode.toUpperCase();
     lead.nmbrsKlant = klantKeuze();   // "ja" of "nee"
     return lead;
   }

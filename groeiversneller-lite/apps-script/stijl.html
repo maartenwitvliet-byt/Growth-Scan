@@ -659,7 +659,6 @@ kbd {
 .lead-field label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
 .lead-field .input { padding: 10px 16px; font-size: 15px; }
 .lead-field .input[aria-invalid="true"] { border-color: var(--coral-dark); box-shadow: 0 0 0 3px rgba(254, 110, 99, .18); }
-.lead-row-pc { display: grid; grid-template-columns: 140px 1fr; gap: 14px; }
 .lead-klant { border: none; margin: 18px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 10px; }
 .lead-klant legend { font-size: 13px; font-weight: 700; margin-bottom: 8px; padding: 0; width: 100%; }
 .lead-klant label { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border: 1.5px solid var(--line-strong); border-radius: 999px; font-size: 15px; cursor: pointer; background: var(--white); }
@@ -676,7 +675,7 @@ kbd {
 .lead-fine { font-size: 13px; color: var(--text-muted); margin: 0; flex: 1 1 200px; line-height: 1.35; }
 @media (max-width: 560px) {
   .lead-box { padding: 28px 20px 22px; }
-  .lead-grid, .lead-row-pc { grid-template-columns: 1fr; }
+  .lead-grid { grid-template-columns: 1fr; }
   .lead-title, .lead-intro { padding-right: 0; }
   .lead-actions .btn { width: 100%; }
 }

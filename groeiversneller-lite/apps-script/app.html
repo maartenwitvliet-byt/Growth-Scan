@@ -1132,7 +1132,7 @@
   // ---------------------------------------------------------------
   // PDF ALLEEN NA GEGEVENS (NAWET)
   // ---------------------------------------------------------------
-  // De PDF komt pas vrij als naam, adres, woonplaats, e-mail en telefoon zijn
+  // De PDF komt pas vrij als naam, organisatie, e-mail en telefoon zijn
   // ingevuld. In de Apps Script-webapp gaan die eerst naar het tabblad Leads
   // van de Google Sheet (bewaarLead in Code.gs); pas daarna volgt de download.
   // Optioneel: link naar het privacystatement in de toestemmingstekst.
@@ -1143,12 +1143,10 @@
   const leadError = $("#leadError");
   const leadSubmitBtn = $("#leadSubmitBtn");
   const LEAD_FIELDS = {
-    naam: "#leadNaam", bedrijf: "#leadBedrijf", adres: "#leadAdres", postcode: "#leadPostcode",
-    plaats: "#leadPlaats", email: "#leadEmail", telefoon: "#leadTelefoon",
+    naam: "#leadNaam", bedrijf: "#leadBedrijf", email: "#leadEmail", telefoon: "#leadTelefoon",
   };
   const LEAD_LABELS = {
-    naam: "je naam", bedrijf: "je organisatie", adres: "je adres", postcode: "je postcode",
-    plaats: "je plaats", email: "een geldig e-mailadres", telefoon: "een geldig telefoonnummer",
+    naam: "je naam", bedrijf: "je organisatie", email: "een geldig e-mailadres", telefoon: "een geldig telefoonnummer",
   };
   let leadReturnFocus = null;
 
@@ -1211,7 +1209,6 @@
     const lead = {};
     Object.entries(LEAD_FIELDS).forEach(([k, sel]) => { lead[k] = $(sel).value.trim().replace(/\s+/g, " "); });
     lead.email = lead.email.toLowerCase();
-    lead.postcode = lead.postcode.toUpperCase();
     lead.nmbrsKlant = klantKeuze();   // "ja" of "nee"
     return lead;
   }
