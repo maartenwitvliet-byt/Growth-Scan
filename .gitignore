@@ -1,10 +1,9 @@
 node_modules
-.next
-.env
-.env.local
-.env*.local
-npm-debug.log*
 .DS_Store
-*.tsbuildinfo
-next-env.d.ts
+npm-debug.log*
 package-lock.json
+# De MASTER-Excel bevat namen van personen en kantoren: niet in git.
+*.xlsx
+.clasp.json
+.clasprc.json
+dev/screenshots/

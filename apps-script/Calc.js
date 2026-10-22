@@ -1,0 +1,499 @@
+/**
+ * Groei Scan rekenmodel.
+ *
+ * Wordt op drie plekken gebruikt: in Apps Script (server), in de browser
+ * (via de gegenereerde CalcClient.html) en in de Node-tests. Daarom puur
+ * JavaScript zonder afhankelijkheden en zonder module-syntax.
+ *
+ * Bron van de formules: Groei Scan MASTER-Excel, tabbladen Payroll,
+ * Business Case berekening, Feature Adoption en Pricing 26.
+ */
+var GSCalc = (function () {
+  'use strict';
+
+  // ------------------------------------------------------------------
+  // Hulpfuncties
+  // ------------------------------------------------------------------
+  function isNum(v) { return typeof v === 'number' && isFinite(v); }
+
+  function mean(values) {
+    var sum = 0, n = 0;
+    for (var i = 0; i < values.length; i++) {
+      if (isNum(values[i])) { sum += values[i]; n++; }
+    }
+    return n ? sum / n : null;
+  }
+
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+  function round(v, decimals) {
+    if (!isNum(v)) return v;
+    var f = Math.pow(10, decimals || 0);
+    return Math.round(v * f) / f;
+  }
+
+  // Deterministisch getal tussen 0 en 1 per tekst, voor een vaste spreiding op de matrix.
+  function hash01(text) {
+    var h = 2166136261;
+    for (var i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul ? Math.imul(h, 16777619) : (h * 16777619) | 0;
+    }
+    return ((h >>> 0) % 10000) / 10000;
+  }
+
+  function stellingenVan(content, domeinen) {
+    var set = null;
+    if (domeinen && domeinen.length) {
+      set = {};
+      domeinen.forEach(function (d) { set[d] = true; });
+    }
+    return content.stellingen.filter(function (s) {
+      return s.actief !== false && (!set || set[s.domein]);
+    });
+  }
+
+  function subthemasVan(content, domeinId) {
+    var d = content.domeinen.filter(function (x) { return x.id === domeinId; })[0];
+    return d ? d.subthemas : [];
+  }
+
+  // ------------------------------------------------------------------
+  // Voorwaarden: "toonAls" op een stelling, bijv. "H16 >= 4".
+  // Leeg betekent altijd tonen. Zo kunnen de regels uit de Excel
+  // ("Als 1,2,3 dan de vragen skippen") later in de Sheet worden ingevuld.
+  // ------------------------------------------------------------------
+  function isZichtbaar(stelling, antwoorden) {
+    var regel = (stelling.toonAls || '').trim();
+    if (!regel) return true;
+    var m = regel.match(/^([A-Za-z]\d{2})\s*(>=|<=|>|<|=|==|!=)\s*(\d(?:[.,]\d+)?)$/);
+    if (!m) return true; // onleesbare regel: liever tonen dan verbergen
+    var waarde = antwoorden ? antwoorden[m[1].toUpperCase()] : undefined;
+    if (!isNum(waarde)) return true; // nog niet beantwoord: tonen
+    var doel = parseFloat(m[3].replace(',', '.'));
+    switch (m[2]) {
+      case '>=': return waarde >= doel;
+      case '<=': return waarde <= doel;
+      case '>': return waarde > doel;
+      case '<': return waarde < doel;
+      case '!=': return waarde !== doel;
+      default: return waarde === doel;
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Scores: stelling -> subthema (gemiddelde) -> domein (gemiddelde van
+  // subthema's) -> totaal (gemiddelde van domeinen). Zoals de rijen
+  // "Subtotaal AVERAGE" en "TOTAAL AVERAGE" in de Excel.
+  // ------------------------------------------------------------------
+  function scores(content, antwoorden, domeinen) {
+    var result = { stelling: {}, subthema: {}, domein: {}, totaal: null, aantalBeantwoord: 0, aantalVragen: 0 };
+    var gekozen = (domeinen && domeinen.length) ? domeinen : content.domeinen.map(function (d) { return d.id; });
+    var perSub = {};
+    stellingenVan(content, gekozen).forEach(function (s) {
+      if (!isZichtbaar(s, antwoorden)) return;
+      result.aantalVragen++;
+      var v = antwoorden ? antwoorden[s.id] : undefined;
+      if (isNum(v) && v >= 1 && v <= 5) {
+        result.stelling[s.id] = v;
+        result.aantalBeantwoord++;
+        (perSub[s.subthema] = perSub[s.subthema] || []).push(v);
+      }
+    });
+    var domeinWaarden = [];
+    gekozen.forEach(function (dId) {
+      var subWaarden = [];
+      subthemasVan(content, dId).forEach(function (subId) {
+        var m = perSub[subId] ? mean(perSub[subId]) : null;
+        result.subthema[subId] = m;
+        if (m !== null) subWaarden.push(m);
+      });
+      var dm = mean(subWaarden);
+      result.domein[dId] = dm;
+      if (dm !== null) domeinWaarden.push(dm);
+    });
+    result.totaal = mean(domeinWaarden);
+    return result;
+  }
+
+  // ------------------------------------------------------------------
+  // Benchmark over alle kantoren (de 46 uit de Typeform plus elke
+  // afgeronde scan). "Gemiddeld" volgt de Excel: gemiddelde per stelling,
+  // daarna gemiddelde per subthema en domein. "Beste" is instelbaar:
+  //   top10  = gemiddelde van de best scorende 10% kantoren (standaard)
+  //   excel  = hoogste score per stelling, daarna middelen (zoals de Excel)
+  // ------------------------------------------------------------------
+  function benchmark(content, responses, opties) {
+    opties = opties || {};
+    var methode = opties.besteMethode || 'top10';
+    var aandeel = isNum(opties.besteAandeel) ? opties.besteAandeel : 0.1;
+    var alle = content.domeinen.map(function (d) { return d.id; });
+
+    var perStelling = {};
+    var perResponse = [];
+    responses.forEach(function (r) {
+      Object.keys(r.scores || {}).forEach(function (id) {
+        var v = r.scores[id];
+        if (isNum(v) && v >= 1 && v <= 5) (perStelling[id] = perStelling[id] || []).push(v);
+      });
+      perResponse.push(scores(content, r.scores || {}, alle));
+    });
+
+    var out = { n: responses.length, methode: methode, stelling: {}, subthema: {}, domein: {}, totaal: { gem: null, beste: null }, strokenPerFte: null };
+
+    content.stellingen.forEach(function (s) {
+      var vals = perStelling[s.id] || [];
+      out.stelling[s.id] = {
+        gem: mean(vals),
+        beste: vals.length ? Math.max.apply(null, vals) : null,
+        n: vals.length
+      };
+    });
+
+    function topGemiddelde(values) {
+      var v = values.filter(isNum).sort(function (a, b) { return b - a; });
+      if (!v.length) return null;
+      var k = Math.max(1, Math.ceil(v.length * aandeel));
+      return mean(v.slice(0, k));
+    }
+
+    var domeinGem = [], domeinBesteExcel = [];
+    content.domeinen.forEach(function (d) {
+      var subGem = [], subBesteExcel = [];
+      d.subthemas.forEach(function (subId) {
+        var ids = content.stellingen.filter(function (s) { return s.subthema === subId && s.actief !== false; }).map(function (s) { return s.id; });
+        var gem = mean(ids.map(function (id) { return out.stelling[id].gem; }));
+        var besteExcel = mean(ids.map(function (id) { return out.stelling[id].beste; }));
+        var beste = methode === 'excel' ? besteExcel : topGemiddelde(perResponse.map(function (p) { return p.subthema[subId]; }));
+        out.subthema[subId] = { gem: gem, beste: beste };
+        subGem.push(gem);
+        subBesteExcel.push(besteExcel);
+      });
+      var dGem = mean(subGem);
+      var dBeste = methode === 'excel' ? mean(subBesteExcel) : topGemiddelde(perResponse.map(function (p) { return p.domein[d.id]; }));
+      out.domein[d.id] = { gem: dGem, beste: dBeste };
+      domeinGem.push(dGem);
+      domeinBesteExcel.push(mean(subBesteExcel));
+    });
+    out.totaal.gem = mean(domeinGem);
+    out.totaal.beste = methode === 'excel' ? mean(domeinBesteExcel) : topGemiddelde(perResponse.map(function (p) { return p.totaal; }));
+
+    // Stroken per FTE (per maand): gemiddeld aantal stroken gedeeld door gemiddeld aantal FTE,
+    // zoals 'Resultaten Typeform'!CI2 (=CG2/CH2) en Feature Adoption!D19.
+    var geldig = responses.filter(function (r) { return isNum(r.strokenPerMaand) && isNum(r.fte) && r.fte > 0 && r.strokenPerMaand > 0; });
+    var gemStroken = mean(geldig.map(function (r) { return r.strokenPerMaand; }));
+    var gemFte = mean(geldig.map(function (r) { return r.fte; }));
+    out.strokenPerFte = { gemiddeld: gemFte ? gemStroken / gemFte : null, n: geldig.length };
+    return out;
+  }
+
+  // ------------------------------------------------------------------
+  // Business case Payroll: tabblad "Business Case berekening" + kolommen
+  // K t/m Q van het tabblad Payroll.
+  // ------------------------------------------------------------------
+  function businessCasePayroll(content, antwoorden, kerncijfers, instellingen) {
+    var k = kerncijfers || {};
+    var ins = instellingen || content.instellingen;
+    var fte = Number(k.fte);
+    var stroken = Number(k.strokenPerMaand);
+    if (!(fte > 0) || !(stroken > 0)) return null;
+
+    var salarisMaand = isNum(k.salarisMaand) ? k.salarisMaand : ins.salarisAdministrateurMaand;
+    var factor = isNum(k.werkgeverslastenFactor) ? k.werkgeverslastenFactor : ins.werkgeverslastenFactor;
+    var aandeel = isNum(k.aandeelSalarisverwerking) ? k.aandeelSalarisverwerking : ins.aandeelSalarisverwerking;
+    var software = isNum(k.softwarekostenPerStrook) ? k.softwarekostenPerStrook : ins.softwarekostenPerStrook;
+    var conversie = isNum(k.conversieInvestering) ? k.conversieInvestering : ins.conversieInvestering;
+    var met = ins.efficiencyMetNmbrs, zonder = ins.efficiencyZonderNmbrs;
+
+    var salarisJaar = salarisMaand * factor * 12;          // C10
+    var strokenPerFte = stroken / fte;                       // C12
+    var arbeidPerStrook = (salarisJaar * aandeel) / (strokenPerFte * 12); // F7
+    var kostenPerStrook = arbeidPerStrook + software;        // F8
+    var maandloon = salarisJaar / 12;                        // Payroll!M34
+
+    // Activiteiten met urenkoppeling (Payroll!K), aandeel in de totale uren (L).
+    var acts = content.stellingen.filter(function (s) { return s.domein === 'payroll' && s.urenKolom && s.actief !== false; });
+    var totaalUren = 0;
+    acts.forEach(function (s) { totaalUren += content.urenbenchmark[s.urenKolom] || 0; });
+    var activiteiten = [];
+    var inefficientiePerStrook = 0;                          // Payroll!P34
+    acts.forEach(function (s) {
+      var uren = content.urenbenchmark[s.urenKolom] || 0;
+      var aandeelUren = totaalUren ? uren / totaalUren : 0;  // L
+      var kostenMaand = maandloon * aandeelUren;             // M
+      var score = antwoorden ? antwoorden[s.id] : undefined;
+      // Niet beantwoord: telt niet mee (de Excel zou de volledige kosten rekenen).
+      var besparingMaand = isNum(score) ? kostenMaand * (1 - score / 5) : 0; // O
+      var perStrook = besparingMaand / strokenPerFte;         // P
+      inefficientiePerStrook += perStrook;
+      activiteiten.push({ id: s.id, uren: uren, aandeel: aandeelUren, kostenMaand: kostenMaand, score: isNum(score) ? score : null, besparingMaand: besparingMaand, perStrook: perStrook });
+    });
+
+    var inefficientieMaand = inefficientiePerStrook * stroken;     // I11
+    var inefficientieFte = (inefficientieMaand / salarisJaar) * 12; // I12
+    var strokenPerFteMax = stroken / (fte - inefficientieFte);     // C13
+
+    var jaren = [0, 1, 2].map(function (i) {
+      var huidigPerStrook = kostenPerStrook - inefficientiePerStrook * zonder[i]; // N6
+      var nieuwPerStrook = kostenPerStrook - inefficientiePerStrook * met[i];     // N7
+      var huidigeKosten = huidigPerStrook * stroken * 12;                         // N10
+      var nieuweKosten = nieuwPerStrook * stroken * 12;                           // N11
+      var investering = i === 0 ? conversie : 0;                                  // N12
+      return {
+        jaar: i + 1,
+        huidigPerStrook: huidigPerStrook,
+        nieuwPerStrook: nieuwPerStrook,
+        huidigeKosten: huidigeKosten,
+        nieuweKosten: nieuweKosten,
+        investering: investering,
+        voordeel: huidigeKosten - nieuweKosten - investering,                    // N13
+        fteZonder: inefficientieFte * zonder[i],                                  // S6
+        fteMet: inefficientieFte * met[i],                                        // S7
+        strokenPerFteZonder: strokenPerFte + (strokenPerFteMax - strokenPerFte) * zonder[i], // S16
+        strokenPerFteMet: strokenPerFte + (strokenPerFteMax - strokenPerFte) * met[i]        // S17
+      };
+    });
+
+    return {
+      invoer: { fte: fte, strokenPerMaand: stroken, salarisMaand: salarisMaand, werkgeverslastenFactor: factor, aandeelSalarisverwerking: aandeel, softwarekostenPerStrook: software, conversieInvestering: conversie },
+      salarisJaar: salarisJaar,
+      strokenPerFte: strokenPerFte,
+      strokenPerFteMax: strokenPerFteMax,
+      arbeidPerStrook: arbeidPerStrook,
+      kostenPerStrook: kostenPerStrook,
+      inefficientiePerStrook: inefficientiePerStrook,
+      inefficientieMaand: inefficientieMaand,
+      inefficientieFte: inefficientieFte,
+      activiteiten: activiteiten,
+      jaren: jaren,
+      totaalVoordeel: jaren.reduce(function (a, j) { return a + j.voordeel; }, 0)
+    };
+  }
+
+  // ------------------------------------------------------------------
+  // Business case overige domeinen: eigen uren x uurtarief (zoals in de
+  // Groeiversneller), met dezelfde "1 - score / 5"-regel als Payroll.
+  // ------------------------------------------------------------------
+  function businessCaseDomein(invoer, domeinScore, instellingen) {
+    if (!invoer) return null;
+    var uren = Number(invoer.urenPerWeek), tarief = Number(invoer.uurtarief);
+    if (!(uren > 0) || !(tarief > 0)) return null;
+    var kostenJaar = uren * tarief * 52;
+    var factor = isNum(domeinScore) ? clamp(1 - domeinScore / 5, 0, 1) : 0;
+    var teWinnenJaar = kostenJaar * factor;
+    var met = instellingen.efficiencyMetNmbrs;
+    return {
+      urenPerWeek: uren,
+      uurtarief: tarief,
+      kostenJaar: kostenJaar,
+      factor: factor,
+      teWinnenJaar: teWinnenJaar,
+      urenTeWinnenJaar: uren * 52 * factor,
+      jaren: met.map(function (p, i) { return { jaar: i + 1, voordeel: teWinnenJaar * p, uren: uren * 52 * factor * p }; })
+    };
+  }
+
+  function businessCase(content, scan, scoreResult, instellingen) {
+    var ins = instellingen || content.instellingen;
+    var gekozen = scan.domeinen || [];
+    var res = { payroll: null, domeinen: {}, jaren: [1, 2, 3].map(function (j) { return { jaar: j, voordeel: 0 }; }), totaalVoordeel: 0 };
+    if (gekozen.indexOf('payroll') >= 0) {
+      res.payroll = businessCasePayroll(content, scan.antwoorden, scan.kerncijfers, ins);
+      if (res.payroll) res.payroll.jaren.forEach(function (j, i) { res.jaren[i].voordeel += j.voordeel; });
+    }
+    gekozen.forEach(function (d) {
+      if (d === 'payroll') return;
+      var bc = businessCaseDomein((scan.overigeKosten || {})[d], scoreResult.domein[d], ins);
+      res.domeinen[d] = bc;
+      if (bc) bc.jaren.forEach(function (j, i) { res.jaren[i].voordeel += j.voordeel; });
+    });
+    res.totaalVoordeel = res.jaren.reduce(function (a, j) { return a + j.voordeel; }, 0);
+    return res;
+  }
+
+  // ------------------------------------------------------------------
+  // Pakketadvies: tabblad Pricing 26.
+  // ------------------------------------------------------------------
+  function staffelPrijs(staffel, aantal) {
+    if (!staffel || !staffel.length || !(aantal > 0)) return null;
+    for (var i = 0; i < staffel.length; i++) {
+      var t = staffel[i];
+      if (aantal >= t.van && aantal <= t.tot) return { prijs: t.prijs, van: t.van, tot: t.tot, opAanvraag: !isNum(t.prijs) };
+    }
+    var laatste = staffel[staffel.length - 1];
+    return { prijs: laatste.prijs, van: laatste.van, tot: laatste.tot, opAanvraag: !isNum(laatste.prijs) };
+  }
+
+  function prijsAdvies(prijzen, stroken, keuze) {
+    keuze = keuze || {};
+    if (!(stroken > 0) || !prijzen) return null;
+    var opties = prijzen.pakketten.map(function (p, i) {
+      var extra = Math.max(0, stroken - p.inbegrepen);
+      return { index: i, naam: p.naam, inbegrepen: p.inbegrepen, pakketprijs: p.prijs, extraStroken: extra, prijsExtraStrook: p.prijsExtraStrook, prijsExtra: extra * p.prijsExtraStrook, totaal: p.prijs + extra * p.prijsExtraStrook };
+    });
+    var pakket = opties.reduce(function (best, o) { return (!best || o.totaal < best.totaal) ? o : best; }, null);
+    // Startpakket: zoals Pricing 26 kolom K (pakket -> rij in de starttabel, vanaf Medium 2500 de laatste prijsregel).
+    var start = prijzen.startpakketten[Math.min(pakket.index, 5)];
+
+    var medewerkers = isNum(keuze.medewerkers) && keuze.medewerkers > 0 ? keuze.medewerkers : stroken;
+    var vacatures = Math.max(1, Math.round(medewerkers * (prijzen.hireVacatureAandeel || 0.05)));
+    var add = {
+      expense: staffelPrijs(prijzen.expense, medewerkers),
+      engage: staffelPrijs(prijzen.engage, medewerkers),
+      perform: staffelPrijs(prijzen.perform, medewerkers),
+      hire: staffelPrijs(prijzen.hire, vacatures),
+      pay: staffelPrijs(prijzen.pay, 1)
+    };
+    var gekozen = keuze.opties || {};
+    var totaalMaand = pakket.totaal;
+    var opAanvraag = false;
+    Object.keys(add).forEach(function (k) {
+      if (gekozen[k] && add[k]) {
+        if (add[k].opAanvraag) opAanvraag = true; else totaalMaand += add[k].prijs;
+      }
+    });
+    var startKeuze = keuze.startpakket || 'upGoEssential';
+    return {
+      stroken: stroken,
+      medewerkers: medewerkers,
+      vacatures: vacatures,
+      pakket: pakket,
+      alleOpties: opties,
+      startpakket: { keuze: startKeuze, prijs: start ? start[startKeuze] : null, rij: start },
+      add: add,
+      gekozen: gekozen,
+      totaalMaand: totaalMaand,
+      opAanvraag: opAanvraag
+    };
+  }
+
+  // ------------------------------------------------------------------
+  // Automatisch prioriteren op de matrix (impact x inspanning).
+  //   impact     = 60% gat tot de Nmbrs-doelscore + 40% gewicht in euro's
+  //   inspanning = per functionaliteit (laag, midden, hoog)
+  // De consultant kan elk punt verslepen; die positie wint dan.
+  // ------------------------------------------------------------------
+  var INSPANNING_X = { laag: 0.22, midden: 0.45, hoog: 0.78 };
+  var KWADRANT_GEWICHT = { quickwin: 1, project: 0.7, nice: 0.3, heroverwegen: 0.1 };
+
+  function kwadrant(x, y) {
+    var hogeImpact = y < 0.5, lageInspanning = x < 0.5;
+    if (hogeImpact && lageInspanning) return 'quickwin';
+    if (hogeImpact) return 'project';
+    if (lageInspanning) return 'nice';
+    return 'heroverwegen';
+  }
+
+  function prioriteer(content, scan, scoreResult, bc, instellingen) {
+    var ins = instellingen || content.instellingen;
+    var maxScore = isNum(ins.matrixMaxScore) ? ins.matrixMaxScore : 3;
+    var functies = content.functies || {};
+    var handmatig = scan.matrix || {};
+
+    // Euro-gewicht per stelling (per jaar)
+    var eur = {};
+    if (bc && bc.payroll) {
+      bc.payroll.activiteiten.forEach(function (a) {
+        eur[a.id] = (a.perStrook || 0) * bc.payroll.invoer.strokenPerMaand * 12;
+      });
+    }
+    Object.keys((bc && bc.domeinen) || {}).forEach(function (d) {
+      var dbc = bc.domeinen[d];
+      if (!dbc) return;
+      var ids = Object.keys(scoreResult.stelling).filter(function (id) {
+        var s = content.stellingById[id];
+        return s && s.domein === d;
+      });
+      var gaps = ids.map(function (id) { return Math.max(0, 5 - scoreResult.stelling[id]); });
+      var som = gaps.reduce(function (a, b) { return a + b; }, 0);
+      ids.forEach(function (id, i) { eur[id] = som ? dbc.teWinnenJaar * gaps[i] / som : 0; });
+    });
+    var maxEur = 0;
+    Object.keys(eur).forEach(function (id) { if (eur[id] > maxEur) maxEur = eur[id]; });
+
+    var items = [];
+    Object.keys(scoreResult.stelling).forEach(function (id) {
+      var s = content.stellingById[id];
+      var score = scoreResult.stelling[id];
+      if (!s || score > maxScore) return;
+      var doel = isNum(s.doelscore) ? s.doelscore : 5;
+      var gapNorm = doel > 1 ? clamp((doel - score) / (doel - 1), 0, 1) : 0;
+      var eurNorm = maxEur > 0 && isNum(eur[id]) ? eur[id] / maxEur : gapNorm;
+      var impact = 0.6 * gapNorm + 0.4 * eurNorm;
+      var f = functies[s.functie] || {};
+      var inspanning = f.inspanning || 'midden';
+      var jitterX = (hash01(id + 'x') - 0.5) * 0.14;
+      var jitterY = (hash01(id + 'y') - 0.5) * 0.06;
+      var x = clamp((INSPANNING_X[inspanning] || 0.45) + jitterX, 0.06, 0.94);
+      var y = clamp(1 - (0.06 + impact * 0.88) + jitterY, 0.06, 0.94);
+      var h = handmatig[id];
+      if (h && isNum(h.x) && isNum(h.y)) { x = clamp(h.x, 0.02, 0.98); y = clamp(h.y, 0.02, 0.98); }
+      items.push({ id: id, functie: s.functie, domein: s.domein, score: score, impact: impact, euroJaar: eur[id] || 0, inspanning: inspanning, x: x, y: y, handmatig: !!(h && isNum(h.x)), kwadrant: kwadrant(x, y) });
+    });
+    items.sort(function (a, b) { return b.impact - a.impact; });
+    return items;
+  }
+
+  // Top-kansen per functionaliteit ("Waar zit voor jou de meeste winst").
+  function topKansen(items, aantal) {
+    var perFunctie = {};
+    items.forEach(function (it) {
+      var f = perFunctie[it.functie] = perFunctie[it.functie] || { functie: it.functie, score: 0, stellingen: [], euroJaar: 0, kwadranten: {} };
+      f.score += it.impact * (KWADRANT_GEWICHT[it.kwadrant] || 0);
+      f.euroJaar += it.euroJaar;
+      f.stellingen.push(it.id);
+      f.kwadranten[it.kwadrant] = (f.kwadranten[it.kwadrant] || 0) + 1;
+    });
+    return Object.keys(perFunctie).map(function (k) { return perFunctie[k]; })
+      .filter(function (f) { return f.score > 0; })
+      .sort(function (a, b) { return b.score - a.score; })
+      .slice(0, aantal || 5);
+  }
+
+  // Index op id; wordt eenmalig aangeroepen na het laden van de content.
+  function indexeer(content) {
+    content.stellingById = {};
+    content.stellingen.forEach(function (s) { content.stellingById[s.id] = s; });
+    content.domeinById = {};
+    content.domeinen.forEach(function (d) { content.domeinById[d.id] = d; });
+    return content;
+  }
+
+  // Alles in één keer, voor scherm, rapport en opslag.
+  function analyse(content, scan, benchmarkData) {
+    var ins = Object.assign ? Object.assign({}, content.instellingen) : content.instellingen;
+    var sc = scores(content, scan.antwoorden || {}, scan.domeinen);
+    var bc = businessCase(content, scan, sc, ins);
+    var items = prioriteer(content, scan, sc, bc, ins);
+    var advies = prijsAdvies(content.prijzen, scan.kerncijfers && Number(scan.kerncijfers.strokenPerMaand), scan.voorstel);
+    return {
+      scores: sc,
+      benchmark: benchmarkData || null,
+      businessCase: bc,
+      matrix: items,
+      kansen: topKansen(items, 5),
+      prijs: advies
+    };
+  }
+
+  return {
+    mean: mean,
+    round: round,
+    isZichtbaar: isZichtbaar,
+    scores: scores,
+    benchmark: benchmark,
+    businessCasePayroll: businessCasePayroll,
+    businessCaseDomein: businessCaseDomein,
+    businessCase: businessCase,
+    staffelPrijs: staffelPrijs,
+    prijsAdvies: prijsAdvies,
+    kwadrant: kwadrant,
+    prioriteer: prioriteer,
+    topKansen: topKansen,
+    indexeer: indexeer,
+    analyse: analyse,
+    stellingenVan: stellingenVan
+  };
+})();
+
+if (typeof module !== 'undefined' && module.exports) module.exports = GSCalc;
