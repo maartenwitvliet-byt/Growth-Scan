@@ -7,3 +7,4 @@ package-lock.json
 .clasp.json
 .clasprc.json
 dev/screenshots/
+dev/demo.html

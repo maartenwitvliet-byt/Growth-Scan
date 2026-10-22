@@ -157,6 +157,7 @@ npm install          # alleen nodig voor de lokale PDF-test
 npm test             # rekenmodel + server (22 tests)
 npm run dev          # http://localhost:8080/?modus=begeleid  of  ?modus=campagne
 npm run e2e          # met npm run dev actief: doorloopt beide modi in Chromium
+node tools/demo.mjs  # losse demo-pagina dev/demo.html (#campagne voor de campagnemodus)
 ```
 
 De Excel staat niet in git (persoonsgegevens). Na een nieuwe versie van de
