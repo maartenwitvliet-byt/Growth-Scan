@@ -6,7 +6,8 @@
   "scripts": {
     "extract": "python3 tools/extract_excel.py",
     "build": "node tools/build.mjs",
-    "test": "node tools/build.mjs && node --test test/*.test.mjs",
+    "test": "node tools/build.mjs && node --test test/calc.test.mjs test/server.test.mjs",
+    "e2e": "node dev/e2e.mjs",
     "dev": "node tools/build.mjs && node dev/server.mjs",
     "push": "node tools/build.mjs && clasp push"
   },

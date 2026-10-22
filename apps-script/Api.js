@@ -149,11 +149,13 @@ function valideerScan_(scan) {
   var consultant = email ? zoekConsultant_(email) : null;
   var modus = scan.modus === 'begeleid' ? 'begeleid' : 'campagne';
   if (modus === 'begeleid' && !consultant) throw new Error('Geen toegang: log in met een Nmbrs-account dat in het tabblad Consultants staat.');
-  // Antwoorden opschonen: alleen bekende ids met een score van 1 tot 5.
+  // Antwoorden opschonen: alleen bestaande stellingen met een score van 1 tot 5.
+  var bekend = {};
+  laadContent_().stellingen.forEach(function (s) { bekend[s.id] = true; });
   var schoon = {};
   Object.keys(scan.antwoorden || {}).forEach(function (id) {
     var v = Number(scan.antwoorden[id]);
-    if (/^[A-Z]\d{2}$/.test(id) && v >= 1 && v <= 5) schoon[id] = Math.round(v);
+    if (bekend[id] && v >= 1 && v <= 5) schoon[id] = Math.round(v);
   });
   scan.antwoorden = schoon;
   scan.domeinen = (scan.domeinen || []).filter(function (d) { return ['payroll', 'hr', 'tech', 'zelf'].indexOf(d) >= 0; });
