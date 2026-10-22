@@ -689,6 +689,12 @@ kbd {
 .lead-field .input { padding: 10px 16px; font-size: 15px; }
 .lead-field .input[aria-invalid="true"] { border-color: var(--coral-dark); box-shadow: 0 0 0 3px rgba(254, 110, 99, .18); }
 .lead-row-pc { display: grid; grid-template-columns: 140px 1fr; gap: 14px; }
+.lead-klant { border: none; margin: 18px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 10px; }
+.lead-klant legend { font-size: 13px; font-weight: 700; margin-bottom: 8px; padding: 0; width: 100%; }
+.lead-klant label { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border: 1.5px solid var(--line-strong); border-radius: 999px; font-size: 15px; cursor: pointer; background: var(--white); }
+.lead-klant label:has(input:checked) { border-color: var(--blurple); background: var(--lavender); font-weight: 600; }
+.lead-klant input { accent-color: var(--blurple); width: 18px; height: 18px; margin: 0; }
+.lead-klant.invalid legend { color: var(--coral-dark); }
 .lead-consent { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; margin: 18px 0 0; font-size: 14px; line-height: 1.35; color: var(--text-soft); }
 .lead-consent input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--blurple); }
 .lead-consent.invalid { color: var(--coral-dark); }
@@ -1287,15 +1293,15 @@ kbd {
         <p class="decision-sub">Kies wat voor jou logisch voelt. We nemen het mee in je groeiverhaal.</p>
         <p class="decision-required" id="decisionRequired"><span class="material-symbols-outlined" aria-hidden="true">touch_app</span>Kies een van de drie opties om je groeiverhaal te downloaden</p>
         <div class="decision-cards" id="decisionCards">
-          <button type="button" class="decision-card" data-decision="quickwin">
-            <span class="material-symbols-outlined decision-card-icon" aria-hidden="true">bolt</span>
-            <span class="decision-card-title">Ik wil zelf starten met de quick wins</span>
-            <span class="decision-card-desc">Snel starten, weinig gedoe, meteen effect.</span>
-          </button>
           <button type="button" class="decision-card" data-decision="kennismaken">
             <span class="material-symbols-outlined decision-card-icon" aria-hidden="true">handshake</span>
             <span class="decision-card-title">Ik wil kennismaken met Nmbrs Payroll</span>
             <span class="decision-card-desc">Hoe lost Nmbrs mijn pijnpunten op?</span>
+          </button>
+          <button type="button" class="decision-card" data-decision="quickwin">
+            <span class="material-symbols-outlined decision-card-icon" aria-hidden="true">bolt</span>
+            <span class="decision-card-title">Ik wil zelf starten met de quick wins</span>
+            <span class="decision-card-desc">Snel starten, weinig gedoe, meteen effect.</span>
           </button>
           <button type="button" class="decision-card" data-decision="wachten">
             <span class="material-symbols-outlined decision-card-icon" aria-hidden="true">schedule</span>
@@ -1338,6 +1344,11 @@ kbd {
       <div class="lead-field"><label for="leadEmail">E-mailadres *</label><input class="input" id="leadEmail" name="email" type="email" autocomplete="email" maxlength="160" required></div>
       <div class="lead-field"><label for="leadTelefoon">Telefoonnummer *</label><input class="input" id="leadTelefoon" name="telefoon" type="tel" autocomplete="tel" maxlength="30" required></div>
     </div>
+    <fieldset class="lead-klant" id="leadKlantRow">
+      <legend>Gebruikt je organisatie al Nmbrs Payroll? *</legend>
+      <label><input type="radio" name="nmbrsKlant" value="ja"> Ja, we zijn al klant</label>
+      <label><input type="radio" name="nmbrsKlant" value="nee"> Nee, nog niet</label>
+    </fieldset>
     <div class="lead-hp" aria-hidden="true"><label for="leadWebsite">Website</label><input id="leadWebsite" name="website" tabindex="-1" autocomplete="off"></div>
     <label class="lead-consent" id="leadConsentRow"><input type="checkbox" id="leadConsent"><span id="leadConsentText">Ik vind het goed dat Nmbrs mijn gegevens gebruikt om contact met mij op te nemen over mijn groeiverhaal.</span></label>
     <p class="lead-error hidden" id="leadError" role="alert"></p>
@@ -2881,7 +2892,7 @@ const THEMES = [
           Math.hypot(upEvt.clientX - downEvt.clientX, upEvt.clientY - downEvt.clientY) < 8;
         if (isTap) {
           if (!startedInMatrix && card.parentElement !== priorityTray) priorityTray.insertBefore(card, priorityTray.firstChild);
-          openQuadrantPicker(card);
+          openQuadrantPicker(card, false);
           return;
         }
 
@@ -2905,13 +2916,22 @@ const THEMES = [
     card.setAttribute("role", "button");
     card.setAttribute("aria-label", card.title + ". Druk Enter om een vak te kiezen, of 1 quick win, 2 groot project, 3 nice to have, 4 heroverwegen.");
     card.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openQuadrantPicker(card); return; }
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openQuadrantPicker(card, true); return; }
       const q = { "1": "quickwin", "2": "project", "3": "nice", "4": "reconsider" }[e.key];
       if (!q) return;
       e.preventDefault();
       placeInQuadrant(card, q);
       card.focus();
     });
+  }
+
+  // Na het plaatsen van een kaartje blijft het scherm waar het was (sommige telefoons springen anders terug naar boven).
+  function houdScrollpositie(y) {
+    const herstel = () => { if (Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y); };
+    herstel();
+    requestAnimationFrame(herstel);
+    setTimeout(herstel, 120);
+    setTimeout(herstel, 400);
   }
 
   const QUADRANT_CENTER = { quickwin: [25, 25], project: [75, 25], nice: [25, 75], reconsider: [75, 75] };
@@ -2928,7 +2948,7 @@ const THEMES = [
   function closeQuadrantPicker() {
     if (quadrantPicker) { quadrantPicker.remove(); quadrantPicker = null; }
   }
-  function openQuadrantPicker(card) {
+  function openQuadrantPicker(card, viaToetsenbord) {
     closeQuadrantPicker();
     const found = findItem(card.dataset.key);
     const opts = [
@@ -2955,10 +2975,14 @@ const THEMES = [
     el.style.left = left + "px";
     el.style.top = top + "px";
     $$(".q-picker-btn", el).forEach(b => b.addEventListener("click", () => {
+      const y = window.scrollY;
       closeQuadrantPicker();
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       placeInQuadrant(card, b.dataset.q);
+      houdScrollpositie(y);
     }));
-    $(".q-picker-btn", el).focus({ preventScroll: true });
+    // Alleen bij toetsenbordgebruik de focus verplaatsen: op een telefoon kan focus het scherm laten verspringen.
+    if (viaToetsenbord) $(".q-picker-btn", el).focus({ preventScroll: true });
   }
   document.addEventListener("pointerdown", (e) => {
     if (quadrantPicker && !quadrantPicker.contains(e.target)) closeQuadrantPicker();
@@ -3374,6 +3398,10 @@ const THEMES = [
     const bedrijf = $("#leadBedrijf");
     if (state.client && state.client !== "jouw organisatie") bedrijf.value = state.client;
     $("#leadConsentRow").classList.remove("invalid");
+    $("#leadKlantRow").classList.remove("invalid");
+    if (!klantKeuze() && (remembered.nmbrsKlant === "ja" || remembered.nmbrsKlant === "nee")) {
+      $('input[name="nmbrsKlant"][value="' + remembered.nmbrsKlant + '"]').checked = true;
+    }
     leadError.classList.add("hidden");
     leadReturnFocus = document.activeElement;
     leadOverlay.classList.remove("hidden");
@@ -3388,11 +3416,17 @@ const THEMES = [
     if (leadReturnFocus && leadReturnFocus.focus) leadReturnFocus.focus();
   }
 
+  function klantKeuze() {
+    const r = $('input[name="nmbrsKlant"]:checked');
+    return r ? r.value : "";
+  }
+
   function readLeadForm() {
     const lead = {};
     Object.entries(LEAD_FIELDS).forEach(([k, sel]) => { lead[k] = $(sel).value.trim().replace(/\s+/g, " "); });
     lead.email = lead.email.toLowerCase();
     lead.postcode = lead.postcode.toUpperCase();
+    lead.nmbrsKlant = klantKeuze();   // "ja" of "nee"
     return lead;
   }
 
@@ -3418,10 +3452,14 @@ const THEMES = [
     });
     const consent = $("#leadConsent").checked;
     $("#leadConsentRow").classList.toggle("invalid", !consent);
-    if (bad.length || !consent) {
+    $("#leadKlantRow").classList.toggle("invalid", !lead.nmbrsKlant);
+    if (bad.length || !consent || !lead.nmbrsKlant) {
       const parts = bad.map(k => LEAD_LABELS[k]);
       if (!consent) parts.push("je toestemming");
-      showLeadError("Vul nog even " + joinWithEn(parts) + " in.");
+      const zinnen = [];
+      if (parts.length) zinnen.push("Vul nog even " + joinWithEn(parts) + " in.");
+      if (!lead.nmbrsKlant) zinnen.push("Geef " + (parts.length ? "ook " : "nog even ") + "aan of je organisatie al Nmbrs Payroll gebruikt.");
+      showLeadError(zinnen.join(" "));
       if (bad.length) $(LEAD_FIELDS[bad[0]]).focus();
       return;
     }
@@ -3825,7 +3863,7 @@ const THEMES = [
         '</div></div>';
     } else {
       decisionHtml = '<div class="rp-decision"><span class="material-symbols-outlined" aria-hidden="true">flag</span><div><span class="rp-label">Eerste stap</span><b>Nog te bepalen</b>' +
-        '<p>Zelf starten met de quick wins, kennismaken met Nmbrs Payroll, of eerst intern afstemmen: kies wat voor jou logisch voelt.</p></div></div>';
+        '<p>Kennismaken met Nmbrs Payroll, zelf starten met de quick wins, of eerst intern afstemmen: kies wat voor jou logisch voelt.</p></div></div>';
     }
     bodyOf(p9).innerHTML = secHead("De volgende stap", "Van inzicht naar groei. GoGoGrow!") + decisionHtml +
       '<div class="rp-steps">' +

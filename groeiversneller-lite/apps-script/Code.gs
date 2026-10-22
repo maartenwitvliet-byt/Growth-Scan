@@ -37,7 +37,9 @@
  *     De bron komt mee in de tabbladen Sessies en Leads.
  *
  * Tabbladen in de Sheet:
- *   Lite - Leads       - een regel per prospect die zijn gegevens heeft achtergelaten (voor opvolging).
+ *   Lite - Leads       - een regel per prospect (nog geen Nmbrs Payroll-klant) die zijn gegevens
+ *                        heeft achtergelaten (voor opvolging).
+ *   Lite - Klanten     - idem, voor wie aangeeft al Nmbrs Payroll te gebruiken.
  *                 De kolommen "Opvolgstatus", "Eigenaar" en "Notities" zijn voor sales en
  *                 worden door de app nooit overschreven.
  *   Lite - Sessies     - een regel per ingevulde scan, ook zonder gegevens (handig om afhakers te zien).
@@ -76,7 +78,8 @@ var NOTIFICATIE_EMAIL = '';
 
 // Eigen tabbladnamen, zodat de lite-versie nooit in de tabbladen van de volledige
 // Groeiversneller schrijft als beide in dezelfde Sheet staan (die hebben andere kolommen).
-var TAB_LEADS = 'Lite - Leads';
+var TAB_LEADS = 'Lite - Leads';          // prospects: gebruiken Nmbrs Payroll nog niet
+var TAB_KLANTEN = 'Lite - Klanten';      // bestaande klanten van Nmbrs Payroll
 var TAB_SESSIES = 'Lite - Sessies';
 var TAB_PIJNPUNTEN = 'Lite - Pijnpunten';
 
@@ -330,7 +333,12 @@ function bewaarLead(data) {
   try {
     var ss = openSpreadsheet_();
     var nu = new Date();
-    var leads = tab_(ss, TAB_LEADS, KOLOMMEN_LEADS);
+    // Bestaande klanten en prospects komen in een eigen tabblad. Is het antwoord in dezelfde
+    // sessie veranderd, dan verhuist de regel: weg uit het andere tabblad.
+    var isKlant = lead.nmbrsKlant === 'ja';
+    var leads = tab_(ss, isKlant ? TAB_KLANTEN : TAB_LEADS, KOLOMMEN_LEADS);
+    var ander = tab_(ss, isKlant ? TAB_LEADS : TAB_KLANTEN, KOLOMMEN_LEADS);
+    verwijderRijen_(ander, id);
     var rij = zoekRij_(leads, id);
     var biz = data.businessCase || {};
     var waarden = [
@@ -402,6 +410,8 @@ function controleerLead_(lead) {
   if (schoon.telefoon.replace(/\D/g, '').length < 9) throw new Error('Ongeldig telefoonnummer.');
   if (lead.toestemming !== true) throw new Error('Toestemming ontbreekt.');
   schoon.toestemming = true;
+  if (lead.nmbrsKlant !== 'ja' && lead.nmbrsKlant !== 'nee') throw new Error('Geef aan of de organisatie al Nmbrs Payroll gebruikt.');
+  schoon.nmbrsKlant = lead.nmbrsKlant;
   return schoon;
 }
 
@@ -410,7 +420,7 @@ function stuurMelding_(lead, data) {
   try {
     var biz = data.businessCase || {};
     var regels = [
-      'Nieuwe lead uit de Groeiversneller Lite:',
+      (lead.nmbrsKlant === 'ja' ? 'Bestaande Nmbrs Payroll-klant' : 'Nieuwe lead (nog geen Nmbrs Payroll-klant)') + ' uit de Groeiversneller Lite:',
       '',
       'Naam: ' + lead.naam,
       'Organisatie: ' + lead.bedrijf,
@@ -429,7 +439,7 @@ function stuurMelding_(lead, data) {
     ];
     MailApp.sendEmail({
       to: NOTIFICATIE_EMAIL,
-      subject: 'Nieuwe lead Groeiversneller: ' + lead.bedrijf + ' (' + lead.naam + ')',
+      subject: (lead.nmbrsKlant === 'ja' ? 'Klant via Groeiversneller: ' : 'Nieuwe lead Groeiversneller: ') + lead.bedrijf + ' (' + lead.naam + ')',
       body: regels.join('\n'),
       replyTo: lead.email
     });
@@ -448,6 +458,7 @@ function openSpreadsheet_() {
   }
   var ss = SpreadsheetApp.create(SHEET_NAAM);
   tab_(ss, TAB_LEADS, KOLOMMEN_LEADS);
+  tab_(ss, TAB_KLANTEN, KOLOMMEN_LEADS);
   tab_(ss, TAB_SESSIES, KOLOMMEN_SESSIES);
   tab_(ss, TAB_PIJNPUNTEN, KOLOMMEN_PIJNPUNTEN);
   var standaard = ss.getSheetByName('Sheet1') || ss.getSheetByName('Blad1');
@@ -464,7 +475,7 @@ function tab_(ss, naam, kolommen) {
     sh.getRange(1, 1, 1, kolommen.length).setValues([kolommen])
       .setFontWeight('bold').setBackground('#6B5DFF').setFontColor('#00001D');
     sh.setFrozenRows(1);
-    if (naam === TAB_LEADS) {
+    if (naam === TAB_LEADS || naam === TAB_KLANTEN) {
       sh.getRange('B:B').setNumberFormat('dd-mm-yyyy hh:mm');
       sh.getRange('P:P').setNumberFormat('€ #,##0');
       sh.getRange('R:R').setNumberFormat('dd-mm-yyyy');

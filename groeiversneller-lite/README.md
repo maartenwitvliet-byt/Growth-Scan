@@ -13,7 +13,7 @@ komen in een Google Sheet, zodat sales ze kan opvolgen.
 3. **Prioriteer** – matrix van impact × inspanning. Slepen, of tikken en een vak kiezen (handig op een telefoon).
 4. **Business case** – hoeveel tijd ben je nu kwijt? Dit wordt omgerekend naar uren en euro's per jaar.
 5. **Groeiverhaal** – score, roadmap, quick wins en de eerste stap. **Download je groeiverhaal (PDF)**
-   opent eerst het formulier (naam, organisatie, adres, postcode, plaats, e-mail, telefoon en toestemming).
+   opent eerst het formulier (naam, organisatie, adres, postcode, plaats, e-mail, telefoon, of de organisatie al Nmbrs Payroll gebruikt, en toestemming).
 
 ## Installeren (Google Apps Script)
 Alles wat je plakt staat in de map **`apps-script/`**. De app is daar bewust in vijf kleinere
@@ -64,7 +64,8 @@ De bron komt in de kolom **Bron** van de tabbladen Lite - Leads en Lite - Sessie
 ## Tabbladen in de Sheet
 | Tabblad | Inhoud |
 |---|---|
-| **Lite - Leads** | Eén regel per prospect die gegevens heeft achtergelaten: NAWET, score, pijnpunten, kosten per jaar, eerste stap en bron. De lavendelkleurige kolommen *Opvolgstatus*, *Eigenaar* en *Notities* zijn voor sales; de app raakt ze niet aan. |
+| **Lite - Leads** | Eén regel per prospect (gebruikt Nmbrs Payroll nog niet) die gegevens heeft achtergelaten: NAWET, score, pijnpunten, kosten per jaar, eerste stap en bron. De lavendelkleurige kolommen *Opvolgstatus*, *Eigenaar* en *Notities* zijn voor sales; de app raakt ze niet aan. |
+| **Lite - Klanten** | Zelfde kolommen, voor wie in het formulier aangeeft al Nmbrs Payroll te gebruiken. Verandert iemand in dezelfde sessie zijn antwoord, dan verhuist de regel mee. |
 | **Lite - Sessies** | Eén regel per gestarte scan, ook zonder gegevens. Zo zie je waar mensen afhaken (kolommen *Laatste stap* en *Gegevens achtergelaten*). |
 | **Lite - Pijnpunten** | Eén regel per aangetikt pijnpunt, voor analyses over alle prospects heen. |
 

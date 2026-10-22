@@ -322,15 +322,15 @@
         <p class="decision-sub">Kies wat voor jou logisch voelt. We nemen het mee in je groeiverhaal.</p>
         <p class="decision-required" id="decisionRequired"><span class="material-symbols-outlined" aria-hidden="true">touch_app</span>Kies een van de drie opties om je groeiverhaal te downloaden</p>
         <div class="decision-cards" id="decisionCards">
-          <button type="button" class="decision-card" data-decision="quickwin">
-            <span class="material-symbols-outlined decision-card-icon" aria-hidden="true">bolt</span>
-            <span class="decision-card-title">Ik wil zelf starten met de quick wins</span>
-            <span class="decision-card-desc">Snel starten, weinig gedoe, meteen effect.</span>
-          </button>
           <button type="button" class="decision-card" data-decision="kennismaken">
             <span class="material-symbols-outlined decision-card-icon" aria-hidden="true">handshake</span>
             <span class="decision-card-title">Ik wil kennismaken met Nmbrs Payroll</span>
             <span class="decision-card-desc">Hoe lost Nmbrs mijn pijnpunten op?</span>
+          </button>
+          <button type="button" class="decision-card" data-decision="quickwin">
+            <span class="material-symbols-outlined decision-card-icon" aria-hidden="true">bolt</span>
+            <span class="decision-card-title">Ik wil zelf starten met de quick wins</span>
+            <span class="decision-card-desc">Snel starten, weinig gedoe, meteen effect.</span>
           </button>
           <button type="button" class="decision-card" data-decision="wachten">
             <span class="material-symbols-outlined decision-card-icon" aria-hidden="true">schedule</span>
@@ -373,6 +373,11 @@
       <div class="lead-field"><label for="leadEmail">E-mailadres *</label><input class="input" id="leadEmail" name="email" type="email" autocomplete="email" maxlength="160" required></div>
       <div class="lead-field"><label for="leadTelefoon">Telefoonnummer *</label><input class="input" id="leadTelefoon" name="telefoon" type="tel" autocomplete="tel" maxlength="30" required></div>
     </div>
+    <fieldset class="lead-klant" id="leadKlantRow">
+      <legend>Gebruikt je organisatie al Nmbrs Payroll? *</legend>
+      <label><input type="radio" name="nmbrsKlant" value="ja"> Ja, we zijn al klant</label>
+      <label><input type="radio" name="nmbrsKlant" value="nee"> Nee, nog niet</label>
+    </fieldset>
     <div class="lead-hp" aria-hidden="true"><label for="leadWebsite">Website</label><input id="leadWebsite" name="website" tabindex="-1" autocomplete="off"></div>
     <label class="lead-consent" id="leadConsentRow"><input type="checkbox" id="leadConsent"><span id="leadConsentText">Ik vind het goed dat Nmbrs mijn gegevens gebruikt om contact met mij op te nemen over mijn groeiverhaal.</span></label>
     <p class="lead-error hidden" id="leadError" role="alert"></p>
