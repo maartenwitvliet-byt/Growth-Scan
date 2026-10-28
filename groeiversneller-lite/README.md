@@ -64,9 +64,9 @@ De bron komt in de kolom **Bron** van de tabbladen Lite - Leads en Lite - Sessie
 ## Tabbladen in de Sheet
 | Tabblad | Inhoud |
 |---|---|
-| **Lite - Leads** | Eén regel per prospect (gebruikt Nmbrs Payroll nog niet) die gegevens heeft achtergelaten: naam, organisatie, e-mail, telefoon, score, pijnpunten, kosten per jaar, eerste stap en bron. De lavendelkleurige kolommen *Opvolgstatus*, *Eigenaar* en *Notities* zijn voor sales; de app raakt ze niet aan. |
+| **Lite - Leads** | Opvolglijst: één regel per prospect (gebruikt Nmbrs Payroll nog niet) die gegevens heeft achtergelaten: naam, organisatie, e-mail, telefoon, score, pijnpunten, kosten per jaar, eerste stap, bron, **volwassenheid** en **prioriteit** (1 - Hot: wil kennismaken, 2 - Warm: start zelf, 3 - Later). De lavendelkleurige kolommen *Opvolgstatus*, *Eigenaar* en *Notities* zijn voor sales; de app raakt ze niet aan. |
 | **Lite - Klanten** | Zelfde kolommen, voor wie in het formulier aangeeft al Nmbrs Payroll te gebruiken. Verandert iemand in dezelfde sessie zijn antwoord, dan verhuist de regel mee. |
-| **Lite - Sessies** | Eén regel per gestarte scan, ook zonder gegevens. Zo zie je waar mensen afhaken (kolommen *Laatste stap* en *Gegevens achtergelaten*). |
+| **Lite - Sessies** | Ruwe data: één regel per gestarte scan, ook zonder gegevens. Zo zie je waar mensen afhaken (kolommen *Laatste stap* en *Gegevens achtergelaten*). |
 | **Lite - Pijnpunten** | Eén regel per aangetikt pijnpunt, voor analyses over alle prospects heen. |
 
 ## Benchmark monitor
@@ -75,9 +75,12 @@ Direct vernieuwen kan ook: voer in de editor de functie `vernieuwBenchmark` uit.
 
 | Tabblad | Inhoud |
 |---|---|
-| **Benchmark** | Dashboard. Kies in C7 een organisatie en zie die naast het **gemiddelde** en de **beste** (totaal en per thema), met kerncijfers, de positie in de ranking en een top 20. |
-| **Benchmark - Inzichten** | Meest aangetikte pijnpunten, gemiddelde volwassenheid per thema, gekozen eerste stap, bron, funnel en scans per week, elk met grafiek. |
-| **Benchmark - Data** | Eén regel per afgeronde scan (groeiverhaal bereikt of gegevens achtergelaten), gesorteerd op volwassenheid. |
+| **Benchmark** | Dashboard. Kerncijfers (afgeronde scans, contactgegevens, waarvan nieuwe leads en Nmbrs-klanten, conversie, gemiddelde volwassenheid, opgetelde kosten per jaar). Kies in C7 een organisatie en zie die naast het **gemiddelde** en de **beste** (totaal en per thema), met positie, zwakste thema, kerncijfers en een top 20. |
+| **Benchmark - Inzichten** | Meest aangetikte pijnpunten, gemiddelde volwassenheid per thema, zwakste thema (bij hoeveel organisaties), gekozen eerste stap, bron, funnel en scans per week, elk met grafiek. |
+| **Benchmark - Data** | Eén regel per afgeronde scan (groeiverhaal bereikt of gegevens achtergelaten), gesorteerd op volwassenheid, met Nmbrs-klant (ja/nee/onbekend) en zwakste thema. |
+
+De benchmark neemt **alle** afgeronde scans mee: Nmbrs-klanten en prospects samen. De splitsing
+in Lite - Klanten en Lite - Leads is alleen voor de opvolging.
 
 **Volwassenheid** = het percentage stellingen dat op orde is (niet aangetikt als pijnpunt).
 Hoger is beter. Bij uren en kosten per jaar is lager beter. De benchmark-tabbladen worden
@@ -88,6 +91,8 @@ Pas teksten of de werking aan in `index.html` (die kun je ook lokaal in een brow
 Maak daarna de Apps Script-bestanden opnieuw met `python3 bouw_apps_script.py`.
 
 ## Goed om te weten
+- Bestaande Sheets worden automatisch bijgewerkt: de kolommen Volwassenheid en Prioriteit komen erbij
+  (sales-kolommen schuiven mee) en de ongebruikte kolom *Back-up (JSON)* in Lite - Sessies verdwijnt.
 - Eerdere versies vroegen ook adres, postcode en plaats. Staan die kolommen nog in Lite - Leads of
   Lite - Klanten, dan haalt de code ze bij de eerstvolgende opslag (of bij `setup`) automatisch weg.
 - De PDF-blokkade zit in de browser. Wie technisch handig is, kan die omzeilen. Voor leadgeneratie is dat gebruikelijk en acceptabel.
