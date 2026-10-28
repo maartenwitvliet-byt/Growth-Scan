@@ -3492,7 +3492,13 @@ const THEMES = [
         leadSubmitBtn.disabled = false;
         leadSubmitBtn.innerHTML = originalHtml;
         console.error(err);
-        showLeadError("Het versturen lukte niet. Controleer je internetverbinding en probeer het opnieuw.");
+        // Geen verbinding (of de server is niet bereikbaar) versus: de server weigerde de gegevens.
+        // In het tweede geval tonen we de reden, zodat een probleem direct te herkennen is.
+        const melding = String((err && err.message) || err || "");
+        const netwerk = !melding || err instanceof TypeError || /NetworkError|Failed to fetch|Load failed|network/i.test(melding);
+        showLeadError(netwerk
+          ? "Het versturen lukte niet. Controleer je internetverbinding en probeer het opnieuw."
+          : "Het opslaan lukte niet: " + melding.replace(/^(Exception|Error):\s*/i, "") + " Probeer het opnieuw of neem contact met ons op.");
       });
   });
 
