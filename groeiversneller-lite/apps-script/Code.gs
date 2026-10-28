@@ -162,10 +162,18 @@ function doPost(e) {
  * index.html compleet is en of de Sheet bereikbaar is. Zie het Uitvoeringslogboek.
  */
 function diagnose() {
+  var versies = {};
   Object.keys(HTML_DELEN).forEach(function (naam) {
     var p = controleerDeel_(naam);
-    Logger.log(p ? 'PROBLEEM: ' + p : naam + '.html is compleet (' + deelLengte_(naam) + ' tekens).');
+    versies[naam] = deelVersie_(naam);
+    Logger.log(p ? 'PROBLEEM: ' + p : naam + '.html is compleet (' + deelLengte_(naam) + ' tekens, versie ' + versies[naam] + ').');
   });
+  var uniek = Object.keys(versies).map(function (k) { return versies[k]; })
+    .filter(function (v, i, a) { return a.indexOf(v) === i; });
+  Logger.log(uniek.length === 1
+    ? 'Alle HTML-bestanden hebben dezelfde versie: ' + uniek[0] + '.'
+    : 'PROBLEEM: de HTML-bestanden hebben verschillende versies (' + JSON.stringify(versies) +
+      '). Plak de nieuwste versie in de afwijkende bestanden.');
   try {
     Logger.log('Sheet bereikbaar: ' + openSpreadsheet_().getUrl());
   } catch (e) {
@@ -209,6 +217,15 @@ function controleerDeel_(naam) {
       'Sla op en maak daarna een nieuwe versie van de implementatie.';
   }
   return '';
+}
+
+/** Versiestempel van een HTML-bestand (gezet door bouw_apps_script.py), of '(geen)'. */
+function deelVersie_(naam) {
+  try {
+    var inhoud = HtmlService.createHtmlOutputFromFile(naam).getContent();
+    var m = /gv-versie" content="([^"]+)"|--gv-versie: "([^"]+)"|__GV_VERSIE_[A-Z]+ = "([^"]+)"/.exec(inhoud);
+    return m ? (m[1] || m[2] || m[3]) : '(geen)';
+  } catch (e) { return '(ontbreekt)'; }
 }
 
 function deelLengte_(naam) {

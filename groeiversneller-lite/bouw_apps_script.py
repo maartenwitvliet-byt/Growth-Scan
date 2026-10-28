@@ -45,18 +45,26 @@ assert "<?" not in bron, "index.html mag geen '<?' bevatten (Apps Script-templat
 
 # Eindmarkeringen zijn echte code, geen commentaar: Apps Script laat bij het inlezen
 # HTML-commentaar, CSS-commentaar en <?...?> weg, dus een markering in commentaar verdwijnt.
+# Versiestempel: datum + vingerafdruk van index.html. Elk van de vijf bestanden krijgt hem mee,
+# zodat de app en "diagnose" zien of er een oud bestand tussen de nieuwe staat.
+import datetime, hashlib
+VERSIE = datetime.date.today().strftime("%Y%m%d") + "-" + hashlib.sha1(bron.encode("utf8")).hexdigest()[:6]
 eindes = {
-    "stijl": ("</style>", ".gv-einde-stijl { display: none; }\n</style>"),
-    "beeld": ("</script>", "window.__GV_EINDE_BEELD = true;\n</script>"),
-    "data": ("</script>", "window.__GV_EINDE_DATA = true;\n</script>"),
-    "app": ("</script>", "window.__GV_EINDE_APP = true;\n</script>"),
+    "stijl": ("</style>", '.gv-einde-stijl { display: none; --gv-versie: "%s"; }\n</style>' % VERSIE),
+    "beeld": ("</script>", 'window.__GV_EINDE_BEELD = true; window.__GV_VERSIE_BEELD = "%s";\n</script>' % VERSIE),
+    "data": ("</script>", 'window.__GV_EINDE_DATA = true; window.__GV_VERSIE_DATA = "%s";\n</script>' % VERSIE),
+    "app": ("</script>", 'window.__GV_EINDE_APP = true; window.__GV_VERSIE_APP = "%s";\n</script>' % VERSIE),
 }
+meta = '<meta charset="UTF-8">'
+assert pagina.count(meta) == 1
+pagina = pagina.replace(meta, meta + '\n<meta name="gv-versie" content="%s">' % VERSIE)
 (uit / "index.html").write_text(pagina, encoding="utf8")
 for naam, inhoud in delen.items():
     oud, nieuw = eindes[naam]
     assert inhoud.endswith(oud)
     (uit / (naam + ".html")).write_text(inhoud[: -len(oud)] + nieuw + "\n", encoding="utf8")
 
+print("versie:", VERSIE)
 for f in sorted(uit.glob("*.html")):
     print("%-12s %7d tekens" % (f.name, len(f.read_text(encoding="utf8"))))
 

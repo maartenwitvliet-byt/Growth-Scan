@@ -4027,10 +4027,32 @@ const THEMES = [
   // ---------------------------------------------------------------
   // INIT
   // ---------------------------------------------------------------
+  // In Apps Script bestaat de app uit vijf HTML-bestanden met elk een versiestempel. Staat er een
+  // ouder bestand tussen (bijv. een eerder gedownloade kopie geplakt), dan melden we dat meteen.
+  function controleerVersies() {
+    if (!isAppsScript()) return;
+    const meta = document.querySelector('meta[name="gv-versie"]');
+    const versies = {
+      index: meta ? meta.content : "(geen)",
+      beeld: window.__GV_VERSIE_BEELD || "(geen)",
+      data: window.__GV_VERSIE_DATA || "(geen)",
+      app: window.__GV_VERSIE_APP || "(geen)",
+    };
+    const verschillend = Object.keys(versies).filter(k => versies[k] !== versies.app);
+    if (!verschillend.length) return;
+    const d = document.createElement("div");
+    d.setAttribute("style", "position:fixed;left:16px;right:16px;bottom:16px;z-index:99999;background:#00001D;color:#fff;font:14px/1.4 Arial,sans-serif;padding:14px 18px;border-radius:12px");
+    d.textContent = "Let op: niet alle bestanden in Apps Script zijn van dezelfde versie (" +
+      Object.keys(versies).map(k => k + ": " + versies[k]).join(", ") +
+      "). Plak de nieuwste versie in: " + verschillend.join(", ") + ", en maak daarna een nieuwe versie van de implementatie.";
+    document.body.appendChild(d);
+  }
+
   function init() {
     $$("[data-logo]").forEach(el => { el.innerHTML = logoSvg(el.dataset.logo); });
     $$("[data-n]").forEach(el => { el.innerHTML = nshapeSvg(); });
     captureBron();
+    setTimeout(controleerVersies, 0);
     if (window.CAMPAGNE_BEELD) $("#campagneBeeld").src = window.CAMPAGNE_BEELD;
     else $("#campagneFiguur").classList.add("hidden");
     buildThemeNav();
