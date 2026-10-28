@@ -93,19 +93,33 @@ var KOLOMMEN_LEADS = [
   'Telefoon', 'Toestemming contact', 'Groeipotentieel', 'Pijnpunten', 'Quick wins',
   'Grote projecten', 'Uren per week', 'Kosten per jaar', 'Eerste stap', 'Gewenste startdatum',
   'Thema met meeste pijn', 'Quick wins (titels)', 'Grote projecten (titels)',
-  'Nmbrs-functionaliteiten', 'Bron',
+  'Nmbrs-functionaliteiten', 'Bron', 'Volwassenheid', 'Prioriteit',
   // Vanaf hier: kolommen voor sales, worden door de app niet aangeraakt.
   'Opvolgstatus', 'Eigenaar', 'Notities'
 ];
 /** Aantal kolommen dat de app vult (de rest is voor sales). */
-var LEADS_APP_KOLOMMEN = 20;
+var LEADS_APP_KOLOMMEN = 22;
+
+/** Opvolgprioriteit op basis van de gekozen eerste stap (cijfer vooraan, zodat sorteren werkt). */
+function prioriteitVan_(eersteStap) {
+  var s = String(eersteStap || '');
+  if (/kennismaken/i.test(s)) return '1 - Hot: wil kennismaken';
+  if (/quick wins/i.test(s)) return '2 - Warm: start zelf met quick wins';
+  return '3 - Later: oriënteert zich';
+}
+
+/** Volwassenheid (0-1): het deel van de 26 stellingen dat op orde is. */
+function volwassenheidVan_(pijnpunten) {
+  var totaal = BENCH_THEMAS.reduce(function (a, t) { return a + t[1]; }, 0);
+  return 1 - Math.min(totaal, Math.max(0, getal_(pijnpunten))) / totaal;
+}
 
 var KOLOMMEN_SESSIES = [
   'Sessie-ID', 'Organisatie', 'Gestart', 'Laatst bijgewerkt', 'Gegevens achtergelaten', 'Laatste stap',
   'Groeipotentieel', 'Pijnpunten', 'Geprioriteerd', 'Quick wins', 'Grote projecten',
   'Nice to have', 'Heroverwegen', 'Uren per week', 'Uurtarief', 'Kosten per jaar',
   'Kosten per maand', 'Eerste stap', 'Gewenste startdatum', 'Thema met meeste pijn',
-  'Quick wins (titels)', 'Grote projecten (titels)', 'Nmbrs-functionaliteiten', 'Bron', 'Back-up (JSON)'
+  'Quick wins (titels)', 'Grote projecten (titels)', 'Nmbrs-functionaliteiten', 'Bron'
 ];
 
 var KOLOMMEN_PIJNPUNTEN = [
@@ -307,8 +321,7 @@ function bewaarSessie(data) {
       tekst_(lijst_(data.quickWinTitels)),
       tekst_(lijst_(data.projectTitels)),
       tekst_(lijst_(data.functionaliteiten)),
-      tekst_(data.bron),
-      tekst_(JSON.stringify(data.backup || {})).slice(0, 49000)
+      tekst_(data.bron)
     ];
     if (rij) {
       sessies.getRange(rij, 1, 1, waarden.length).setValues([waarden]);
@@ -379,7 +392,9 @@ function bewaarLead(data) {
       tekst_(lijst_(data.quickWinTitels)),
       tekst_(lijst_(data.projectTitels)),
       tekst_(lijst_(data.functionaliteiten)),
-      tekst_(data.bron)
+      tekst_(data.bron),
+      volwassenheidVan_(data.pijnpunten),
+      prioriteitVan_(data.eersteStap)
     ];
     if (rij) {
       leads.getRange(rij, 1, 1, LEADS_APP_KOLOMMEN).setValues([waarden]);
@@ -447,6 +462,7 @@ function stuurMelding_(lead, data) {
       'Thema met meeste pijn: ' + (data.topThema || '-'),
       'Kosten per jaar (eigen inschatting): ' + (biz.perJaar ? '€ ' + Number(biz.perJaar).toLocaleString('nl-NL') : '-'),
       'Eerste stap: ' + (data.eersteStap || '-'),
+      'Prioriteit: ' + prioriteitVan_(data.eersteStap),
       'Bron: ' + (data.bron || '-'),
       '',
       'Alle details: ' + openSpreadsheet_().getUrl()
@@ -484,7 +500,8 @@ function openSpreadsheet_() {
 /** Geeft het tabblad terug; maakt het aan met een opgemaakte kopregel als het nog niet bestaat. */
 function tab_(ss, naam, kolommen) {
   var sh = ss.getSheetByName(naam);
-  if (sh && (naam === TAB_LEADS || naam === TAB_KLANTEN)) verwijderAdresKolommen_(sh);
+  if (sh && (naam === TAB_LEADS || naam === TAB_KLANTEN)) { verwijderAdresKolommen_(sh); voegOpvolgKolommenToe_(sh); }
+  if (sh && naam === TAB_SESSIES) verwijderBackupKolom_(sh);
   if (!sh) {
     sh = ss.insertSheet(naam);
     sh.getRange(1, 1, 1, kolommen.length).setValues([kolommen])
@@ -494,6 +511,8 @@ function tab_(ss, naam, kolommen) {
       sh.getRange('B:B').setNumberFormat('dd-mm-yyyy hh:mm');
       sh.getRange('M:M').setNumberFormat('€ #,##0');
       sh.getRange('O:O').setNumberFormat('dd-mm-yyyy');
+      sh.getRange('U:U').setNumberFormat('0%');
+      prioriteitOpmaak_(sh);
       // Kolommen voor sales in Lavender, zodat duidelijk is wat de app niet aanraakt.
       sh.getRange(1, LEADS_APP_KOLOMMEN + 1, 1, kolommen.length - LEADS_APP_KOLOMMEN).setBackground('#E7E5FF');
       var status = SpreadsheetApp.newDataValidation()
@@ -519,6 +538,43 @@ function tab_(ss, naam, kolommen) {
 function verwijderAdresKolommen_(sh) {
   var kop = sh.getRange(1, 5, 1, 3).getValues()[0];
   if (kop[0] === 'Adres' && kop[1] === 'Postcode' && kop[2] === 'Plaats') sh.deleteColumns(5, 3);
+}
+
+/**
+ * Eenmalige uitbreiding: de kolommen Volwassenheid en Prioriteit komen tussen Bron en de
+ * sales-kolommen. Bestaande regels worden meteen ingevuld; Opvolgstatus, Eigenaar en
+ * Notities schuiven ongewijzigd mee naar rechts.
+ */
+function voegOpvolgKolommenToe_(sh) {
+  var kop = sh.getRange(1, 20, 1, 2).getValues()[0];
+  if (kop[0] !== 'Bron' || kop[1] !== 'Opvolgstatus') return;
+  sh.insertColumnsBefore(21, 2);
+  sh.getRange(1, 21, 1, 2).setValues([['Volwassenheid', 'Prioriteit']])
+    .setFontWeight('bold').setBackground('#6B5DFF').setFontColor('#00001D');
+  var n = sh.getLastRow() - 1;
+  if (n > 0) {
+    var pijn = sh.getRange(2, 9, n, 1).getValues();     // kolom I: Pijnpunten
+    var stap = sh.getRange(2, 14, n, 1).getValues();    // kolom N: Eerste stap
+    sh.getRange(2, 21, n, 2).setValues(pijn.map(function (r, i) {
+      return r[0] === '' ? ['', ''] : [volwassenheidVan_(r[0]), prioriteitVan_(stap[i][0])];
+    }));
+  }
+  sh.getRange('U:U').setNumberFormat('0%');
+  prioriteitOpmaak_(sh);
+}
+
+/** Hot-leads koraal, warm lavendel, zodat sales direct ziet wie eerst gebeld moet worden. */
+function prioriteitOpmaak_(sh) {
+  var bereik = sh.getRange('V2:V');
+  sh.setConditionalFormatRules([
+    SpreadsheetApp.newConditionalFormatRule().whenTextStartsWith('1').setBackground('#FFE1DE').setBold(true).setRanges([bereik]).build(),
+    SpreadsheetApp.newConditionalFormatRule().whenTextStartsWith('2').setBackground('#E7E5FF').setRanges([bereik]).build()
+  ]);
+}
+
+/** Eenmalige opschoning: de onleesbare back-upkolom in Lite - Sessies wordt niet meer gebruikt. */
+function verwijderBackupKolom_(sh) {
+  if (sh.getMaxColumns() >= 25 && sh.getRange(1, 25).getValue() === 'Back-up (JSON)') sh.deleteColumn(25);
 }
 
 /** Rijnummer van de sessie in kolom A, of 0 als die er nog niet is. */
@@ -613,14 +669,21 @@ var BENCH_KLEUREN = { geselecteerd: '#6B5DFF', gemiddelde: '#C3BFF5', beste: '#0
 var KOLOMMEN_BENCH_DATA = ['Organisatie (scan)', 'Organisatie', 'Datum', 'Gegevens achtergelaten',
   'Volwassenheid totaal'].concat(BENCH_THEMAS.map(function (t) { return t[0]; })).concat(
   ['Pijnpunten', 'Quick wins', 'Grote projecten', 'Uren per week', 'Kosten per jaar', 'Groeipotentieel',
-   'Eerste stap', 'Bron']);
+   'Eerste stap', 'Bron', 'Nmbrs-klant', 'Zwakste thema']);
 
 /** Vernieuwt alle benchmark-tabbladen. Draait elk uur via een trigger (zie setup). */
 function vernieuwBenchmark() {
   var ss = openSpreadsheet_();
   var sessies = tab_(ss, TAB_SESSIES, KOLOMMEN_SESSIES).getDataRange().getValues().slice(1);
   var pijn = tab_(ss, TAB_PIJNPUNTEN, KOLOMMEN_PIJNPUNTEN).getDataRange().getValues().slice(1);
-  var b = berekenBenchmark_(sessies, pijn);
+  // Klanten en prospects tellen allebei mee; de status is alleen extra informatie per regel.
+  var klantStatus = {};
+  [[TAB_LEADS, 'nee'], [TAB_KLANTEN, 'ja']].forEach(function (t) {
+    var sh = tab_(ss, t[0], KOLOMMEN_LEADS);
+    var n = sh.getLastRow() - 1;
+    if (n > 0) sh.getRange(2, 1, n, 1).getValues().forEach(function (r) { if (r[0]) klantStatus[String(r[0])] = t[1]; });
+  });
+  var b = berekenBenchmark_(sessies, pijn, klantStatus);
   schrijfBenchData_(ss, b);
   schrijfBenchInzichten_(ss, b);
   schrijfBenchDashboard_(ss, b);
@@ -640,7 +703,8 @@ function installeerBenchmarkTrigger_() {
  * @param {Array[]} sessies Rijen uit "Lite - Sessies" (zonder kopregel).
  * @param {Array[]} pijn Rijen uit "Lite - Pijnpunten" (zonder kopregel).
  */
-function berekenBenchmark_(sessies, pijn) {
+function berekenBenchmark_(sessies, pijn, klantStatus) {
+  klantStatus = klantStatus || {};
   var STAPPEN = ['Scan', 'Prioriteer', 'Business case', 'Groeiverhaal'];
   var totaalStellingen = BENCH_THEMAS.reduce(function (a, t) { return a + t[1]; }, 0);
 
@@ -667,12 +731,15 @@ function berekenBenchmark_(sessies, pijn) {
     var label = String(r[1] || 'Onbekend') + (datum ? ' · ' + datumLabel_(datum) : '');
     if (labels[label]) { labels[label]++; label += ' (' + labels[label] + ')'; } else { labels[label] = 1; }
     var themaScores = BENCH_THEMAS.map(function (t) { return 1 - Math.min(t[1], p.thema[t[0]] || 0) / t[1]; });
+    var laagste = Math.min.apply(null, themaScores);
+    var zwakste = laagste < 1 ? BENCH_THEMAS[themaScores.indexOf(laagste)][0] : '(alles op orde)';
     return [
       label, String(r[1] || ''), datum || '', r[4] === 'ja' ? 'ja' : 'nee',
       1 - Math.min(totaalStellingen, p.totaal) / totaalStellingen
     ].concat(themaScores).concat([
       p.totaal, getal_(r[9]), getal_(r[10]), leegOfGetal_(r[13]), leegOfGetal_(r[15]), getal_(r[6]),
-      String(r[17] || ''), bronNaam_(r[23])
+      String(r[17] || ''), bronNaam_(r[23]),
+      klantStatus[id] || 'onbekend', zwakste
     ]);
   });
   rijen.sort(function (a, b) { return b[4] - a[4]; });   // hoogste volwassenheid eerst
@@ -697,6 +764,9 @@ function berekenBenchmark_(sessies, pijn) {
   var themaGem = BENCH_THEMAS.map(function (t, i) {
     return [t[0], gemiddelde_(rijen.map(function (r) { return r[5 + i]; }))];
   });
+
+  // Hoe vaak is welk thema het zwakst (alleen organisaties met minstens één pijnpunt)?
+  var zwaksteTel = telOp_(rijen.map(function (r) { return r[19]; }).filter(function (z) { return z !== '(alles op orde)'; }));
 
   // Eerste stap
   var stap = telOp_(rijen.map(function (r) { return r[16] || '(nog niet gekozen)'; }));
@@ -728,7 +798,7 @@ function berekenBenchmark_(sessies, pijn) {
   var perWeek = Object.keys(weekTel).sort().map(function (k) { return weekTel[k]; });
 
   return {
-    rijen: rijen, topPijn: topPijn, themaGem: themaGem, stap: stap, bron: bron,
+    rijen: rijen, topPijn: topPijn, themaGem: themaGem, zwakste: zwaksteTel, stap: stap, bron: bron,
     funnel: funnel, perWeek: perWeek, sessiesTotaal: alle.length
   };
 }
@@ -752,20 +822,22 @@ function schrijfBenchInzichten_(ss, b) {
   sh.setColumnWidth(1, 300);
   sh.getRange('A1').setValue('Inzichten over alle inzendingen').setFontSize(18).setFontWeight('bold');
   sh.getRange('A2').setValue('Laatst vernieuwd: ' + datumLabel_(new Date(), true) + ' · ' +
-    b.rijen.length + ' afgeronde scans van ' + b.sessiesTotaal + ' gestarte sessies');
+    b.rijen.length + ' afgeronde scans van ' + b.sessiesTotaal + ' gestarte sessies · Nmbrs-klanten en prospects samen');
 
   var blokken = [
     { titel: 'Meest aangetikte pijnpunten', kop: ['Pijnpunt', 'Thema', 'Aantal scans', '% van scans'],
       rijen: b.topPijn, formaat: { 4: '0%' }, grafiek: 'BAR', reeks: [3, 1], hoogte: 420 },
     { titel: 'Gemiddelde volwassenheid per thema', kop: ['Thema', 'Gemiddeld op orde'],
       rijen: b.themaGem, formaat: { 2: '0%' }, grafiek: 'COLUMN', reeks: [2, 1], procent: true },
+    { titel: 'Zwakste thema: waar zit bij de meeste organisaties de grootste achterstand?', kop: ['Zwakste thema', 'Aantal organisaties'],
+      rijen: b.zwakste, grafiek: 'BAR', reeks: [2, 1] },
     { titel: 'Gekozen eerste stap', kop: ['Eerste stap', 'Aantal'],
       rijen: b.stap, grafiek: 'PIE', reeks: [2, 1] },
-    { titel: 'Bron van de scans', kop: ['Bron', 'Afgeronde scans', 'Leads'],
+    { titel: 'Bron van de scans', kop: ['Bron', 'Afgeronde scans', 'Contactgegevens achtergelaten'],
       rijen: b.bron, grafiek: 'COLUMN', reeks: [2, 2] },
     { titel: 'Funnel: hoe ver komen bezoekers?', kop: ['Stap', 'Sessies'],
       rijen: b.funnel, grafiek: 'BAR', reeks: [2, 1] },
-    { titel: 'Afgeronde scans en leads per week', kop: ['Week van', 'Afgeronde scans', 'Leads'],
+    { titel: 'Afgeronde scans en contactgegevens per week', kop: ['Week van', 'Afgeronde scans', 'Contactgegevens achtergelaten'],
       rijen: b.perWeek, formaat: { 1: 'dd-mm-yyyy' }, grafiek: 'LINE', reeks: [2, 2] }
   ];
 
@@ -813,24 +885,29 @@ function schrijfBenchDashboard_(ss, b) {
   sh.setHiddenGridlines(true);
   sh.setColumnWidth(1, 20);
   sh.setColumnWidth(2, 260);
-  [3, 4, 5, 6].forEach(function (c) { sh.setColumnWidth(c, 130); });
+  [3, 4, 5, 6, 7, 8].forEach(function (c) { sh.setColumnWidth(c, 140); });
 
   sh.getRange('B1').setValue('Benchmark monitor · Groeiversneller Lite').setFontSize(20).setFontWeight('bold');
-  sh.getRange('B2').setValue('Volwassenheid = percentage stellingen dat op orde is (niet aangetikt als pijnpunt). ' +
+  sh.getRange('B2').setValue('Alle afgeronde scans tellen mee: Nmbrs-klanten en prospects samen. ' +
+    'Volwassenheid = percentage stellingen dat op orde is (niet aangetikt als pijnpunt). ' +
     'Laatst vernieuwd: ' + datumLabel_(new Date(), true) + '. Wordt elk uur bijgewerkt.').setFontColor('#5B5B74');
 
   // KPI's
-  sh.getRange('B4:F4').setValues([['Afgeronde scans', 'Leads', 'Conversie naar lead', 'Gem. volwassenheid', 'Gem. kosten per jaar']])
-    .setFontColor('#5B5B74');
-  sh.getRange('B5:F5').setFormulas([[
+  sh.getRange('B4:H4').setValues([['Afgeronde scans', 'Contactgegevens achtergelaten', 'waarvan nieuwe leads',
+    'waarvan Nmbrs-klanten', 'Conversie naar contact', 'Gem. volwassenheid', 'Kosten per jaar (opgeteld)']])
+    .setFontColor('#5B5B74').setWrap(true);
+  sh.getRange('B5:H5').setFormulas([[
     '=COUNTA(' + D + 'A2:A)',
     '=COUNTIF(' + D + 'D2:D,"ja")',
+    '=COUNTIF(' + D + 'S2:S,"nee")',
+    '=COUNTIF(' + D + 'S2:S,"ja")',
     '=IFERROR(C5/B5,0)',
     '=IFERROR(AVERAGE(' + D + 'E2:E),0)',
-    '=IFERROR(AVERAGEIF(' + D + 'O2:O,">0"),0)'
+    '=SUM(' + D + 'O2:O)'
   ].map(F)]).setFontSize(22).setFontWeight('bold').setFontColor('#010149');
-  sh.getRange('D5:E5').setNumberFormat('0%');
-  sh.getRange('F5').setNumberFormat('€ #,##0');
+  sh.getRange('F5:G5').setNumberFormat('0%');
+  sh.getRange('H5').setNumberFormat('€ #,##0');
+  sh.getRange('H6').setValue('door scans geïdentificeerd').setFontColor('#5B5B74').setFontSize(9);
 
   // Keuze organisatie
   sh.getRange('B7').setValue('Kies een organisatie:').setFontWeight('bold');
@@ -842,6 +919,10 @@ function schrijfBenchDashboard_(ss, b) {
   var bestaatNog = b.rijen.some(function (r) { return r[0] === huidige; });
   if (!bestaatNog) keuze.setValue(b.rijen.length ? nieuwste_(b.rijen)[0] : '');
   sh.getRange('B8').setFormula(F('=IFERROR("Positie "&MATCH(C7,' + D + 'A2:A,0)&" van "&B5&" op volwassenheid","")'))
+    .setFontColor('#5B5B74');
+  sh.getRange('C8').setFormula(F('=IFERROR("Zwakste thema: "&INDEX(' + D + 'T2:T,MATCH(C7,' + D + 'A2:A,0)),"")'))
+    .setFontColor('#5B5B74');
+  sh.getRange('F8').setFormula(F('=IFERROR("Nmbrs-klant: "&INDEX(' + D + 'S2:S,MATCH(C7,' + D + 'A2:A,0)),"")'))
     .setFontColor('#5B5B74');
 
   // Tabel 1: volwassenheid per thema (bron voor de grafiek)
@@ -883,8 +964,8 @@ function schrijfBenchDashboard_(ss, b) {
     .setChartType(Charts.ChartType.COLUMN)
     .addRange(sh.getRange('B10:E16'))
     .setNumHeaders(1)
-    .setPosition(4, 8, 0, 0)
-    .setOption('title', 'Volwassenheid: geselecteerd vs. gemiddelde vs. beste')
+    .setPosition(10, 8, 0, 0)
+    .setOption('title', 'Volwassenheid: geselecteerd vs. gemiddelde vs. beste (alle scans)')
     .setOption('width', 760).setOption('height', 380)
     .setOption('legend', { position: 'bottom' })
     .setOption('vAxis', { format: 'percent', minValue: 0, maxValue: 1 })

@@ -2433,8 +2433,6 @@ const THEMES = [
       items,
       gegevensAchtergelaten: !!state.lead,
       bron: bronLabel(),
-      // Back-up zonder contactgegevens: die staan apart in het tabblad Leads.
-      backup: Object.assign(sessionSnapshot(), { lead: null }),
     };
   }
 
@@ -3484,7 +3482,7 @@ const THEMES = [
     const originalHtml = leadSubmitBtn.innerHTML;
     leadSubmitBtn.textContent = "Even geduld…";
     let payload;
-    try { payload = Object.assign(cloudPayload(), { lead, backup: null, items: null }); }
+    try { payload = Object.assign(cloudPayload(), { lead, items: null }); }
     catch (err) { payload = { sessieId: state.sessionId, klant: state.client, lead }; }
     serverCall("bewaarLead", payload,
       () => { leadSubmitBtn.disabled = false; leadSubmitBtn.innerHTML = originalHtml; unlock(); },

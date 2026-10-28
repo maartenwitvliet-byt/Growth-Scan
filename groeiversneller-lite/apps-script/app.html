@@ -220,8 +220,6 @@
       items,
       gegevensAchtergelaten: !!state.lead,
       bron: bronLabel(),
-      // Back-up zonder contactgegevens: die staan apart in het tabblad Leads.
-      backup: Object.assign(sessionSnapshot(), { lead: null }),
     };
   }
 
@@ -1271,7 +1269,7 @@
     const originalHtml = leadSubmitBtn.innerHTML;
     leadSubmitBtn.textContent = "Even geduld…";
     let payload;
-    try { payload = Object.assign(cloudPayload(), { lead, backup: null, items: null }); }
+    try { payload = Object.assign(cloudPayload(), { lead, items: null }); }
     catch (err) { payload = { sessieId: state.sessionId, klant: state.client, lead }; }
     serverCall("bewaarLead", payload,
       () => { leadSubmitBtn.disabled = false; leadSubmitBtn.innerHTML = originalHtml; unlock(); },
@@ -1852,5 +1850,5 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
 })();
-window.__GV_EINDE_APP = true; window.__GV_VERSIE_APP = "20261028-6cc11f";
+window.__GV_EINDE_APP = true; window.__GV_VERSIE_APP = "20261028-769a56";
 </script>
