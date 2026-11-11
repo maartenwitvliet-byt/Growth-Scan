@@ -75,3 +75,26 @@ leeg = 'const OPSLAG_URL = "";'
 assert bron.count(leeg) == 1
 (web / "index.html").write_text(bron.replace(leeg, 'const OPSLAG_URL = "%s";' % OPSLAG_URL), encoding="utf8")
 print("web/index.html %7d tekens (opslag via %s...)" % (len((web / "index.html").read_text(encoding="utf8")), OPSLAG_URL[:45]))
+
+# HubSpot-versie: dezelfde webversie als HubSpot-paginasjabloon (Design Manager, HTML + HubL).
+# Alles staat in {% raw %}-blokken, zodat HubSpot niets van de app als HubL probeert te lezen;
+# alleen de verplichte HubSpot-onderdelen (tracking, cookiebanner) staan erbuiten.
+webinhoud = (web / "index.html").read_text(encoding="utf8")
+for verboden in ("{% raw %}", "{% endraw %}"):
+    assert verboden not in webinhoud
+kop, rest = webinhoud.split("</head>", 1)
+lijf, staart = rest.split("</body>", 1)
+hubspot = (
+    "<!--\n"
+    "  templateType: page\n"
+    "  isAvailableForNewContent: true\n"
+    "  label: Groeiversneller Lite\n"
+    "-->\n"
+    "{% raw %}" + kop + "{% endraw %}\n"
+    "{{ standard_header_includes }}\n"
+    "{% raw %}</head>" + lijf + "{% endraw %}\n"
+    "{{ standard_footer_includes }}\n"
+    "{% raw %}</body>" + staart + "{% endraw %}\n"
+)
+(web / "hubspot-template.html").write_text(hubspot, encoding="utf8")
+print("web/hubspot-template.html %7d tekens" % len(hubspot))
